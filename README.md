@@ -1,6 +1,6 @@
 # VentureBot Backend
 
-AI-powered entrepreneurship coaching platform backend built with Node.js, Express, Supabase, and OpenAI GPT-5.
+AI-powered entrepreneurship coaching platform backend built with Node.js, Express, Supabase, and OpenAI.
 
 ## Features
 
@@ -43,7 +43,7 @@ src/
 
 - Node.js >= 18.0.0
 - Supabase account
-- OpenAI API key (for GPT-5 access)
+- OpenAI API key
 
 ### Installation
 

@@ -28,7 +28,7 @@ export class BaseAgent {
         throw new Error(result.error);
       }
 
-      // GPT-5 response format
+      // OpenAI response format
       return result.response.choices[0].message.content;
     } catch (error) {
       logger.error(`${this.name} agent error:`, error);

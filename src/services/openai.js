@@ -1,6 +1,6 @@
 /**
  * OpenAI API Client
- * Handles communication with GPT-5 API
+ * Handles communication with OpenAI API
  */
 
 import OpenAI from 'openai';
@@ -37,7 +37,7 @@ export const getOpenAI = () => {
 };
 
 /**
- * Send message to GPT-5 with streaming support
+ * Send message to OpenAI API with streaming support
  */
 export const sendMessage = async (messages, systemPrompt, options = {}) => {
   try {
@@ -88,13 +88,13 @@ export const sendMessage = async (messages, systemPrompt, options = {}) => {
 
     return { success: true, response };
   } catch (error) {
-    logger.error('Error sending message to GPT-5:', error);
+    logger.error('Error sending message to OpenAI API:', error);
     return { success: false, error: error.message };
   }
 };
 
 /**
- * Stream message from GPT-5
+ * Stream message from OpenAI API
  */
 export const streamMessage = async (messages, systemPrompt, onChunk, options = {}) => {
   try {
@@ -154,7 +154,7 @@ export const streamMessage = async (messages, systemPrompt, onChunk, options = {
 
     return { success: true, text: fullText };
   } catch (error) {
-    logger.error('Error streaming message from GPT-5:', error);
+    logger.error('Error streaming message from OpenAI API:', error);
     return { success: false, error: error.message };
   }
 };
