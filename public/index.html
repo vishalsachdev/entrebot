@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VentureBot Frontend (MVP)</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="container">
+      <h1>VentureBot Frontend (MVP)</h1>
+      <p class="sub">Simple UI for local testing</p>
+    </header>
+
+    <main class="container grid">
+      <section class="card" id="health-section">
+        <h2>Health</h2>
+        <div class="row">
+          <button id="btn-health">Check API Health</button>
+          <span id="health-status" class="status"></span>
+        </div>
+        <pre id="health-output" class="mono small"></pre>
+      </section>
+
+      <section class="card" id="user-section">
+        <h2>User</h2>
+        <label>Email <input id="inp-email" type="email" placeholder="you@example.com" /></label>
+        <label>Name <input id="inp-name" type="text" placeholder="Optional name" /></label>
+        <div class="row">
+          <button id="btn-create-user">Create/Replace User</button>
+          <span class="hint">Token stored as userId in localStorage</span>
+        </div>
+        <div class="kv">
+          <div><span>User ID:</span><code id="user-id"></code></div>
+        </div>
+        <pre id="user-output" class="mono small"></pre>
+      </section>
+
+      <section class="card" id="session-section">
+        <h2>Session</h2>
+        <div class="row">
+          <button id="btn-create-session">Create Session</button>
+          <button id="btn-load-history">Load History</button>
+        </div>
+        <div class="kv">
+          <div><span>Session ID:</span><code id="session-id"></code></div>
+        </div>
+        <pre id="session-output" class="mono small"></pre>
+      </section>
+
+      <section class="card col-span-2" id="chat-section">
+        <h2>Chat</h2>
+        <div class="row">
+          <label>Agent
+            <select id="sel-agent">
+              <option value="">auto</option>
+              <option value="onboarding">onboarding</option>
+              <option value="ideaGenerator">ideaGenerator</option>
+              <option value="validator">validator</option>
+            </select>
+          </label>
+          <label>
+            <input type="checkbox" id="chk-stream" /> Stream
+          </label>
+        </div>
+        <textarea id="inp-message" rows="4" placeholder="Type your message to the agent..."></textarea>
+        <div class="row">
+          <button id="btn-send">Send</button>
+          <button id="btn-abort" disabled>Abort Stream</button>
+        </div>
+        <div id="chat-log" class="chat"></div>
+      </section>
+
+      <section class="card col-span-2" id="history-section">
+        <h2>History</h2>
+        <ul id="history-list" class="list"></ul>
+      </section>
+    </main>
+
+    <footer class="container foot small">Local testing UI • Uses temporary userId token</footer>
+
+    <script src="/app.js" defer></script>
+  </body>
+  </html>
+
+

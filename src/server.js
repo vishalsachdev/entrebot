@@ -13,6 +13,7 @@ import { initializeSupabase } from './database/supabase.js';
 import { initializeOpenAI } from './services/openai.js';
 import routes from './routes/index.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
+import path from 'path';
 
 const app = express();
 
@@ -23,6 +24,11 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+/**
+ * Static frontend (public/)
+ */
+app.use(express.static('public'));
 
 /**
  * Rate limiting
@@ -39,6 +45,11 @@ app.use('/api/', limiter);
  * Routes
  */
 app.use('/api', routes);
+
+// Root → serve index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
+});
 
 /**
  * Error handling

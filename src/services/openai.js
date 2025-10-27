@@ -49,13 +49,42 @@ export const sendMessage = async (messages, systemPrompt, options = {}) => {
       ...messages
     ];
 
-    const response = await client.chat.completions.create({
-      model: options.model || config.openai.model,
+    const model = options.model || config.openai.model;
+    const makePayload = (useMaxCompletion, tempMode = 'custom') => ({
+      model,
       messages: fullMessages,
-      max_tokens: options.maxTokens || config.openai.maxTokens,
-      temperature: options.temperature || 0.7,
-      stream: options.stream || false
+      ...(tempMode === 'custom' ? { temperature: options.temperature ?? 0.7 } : {}),
+      stream: options.stream || false,
+      ...(useMaxCompletion
+        ? { max_completion_tokens: options.maxTokens || config.openai.maxTokens }
+        : { max_tokens: options.maxTokens || config.openai.maxTokens })
     });
+
+    // First attempt with max_tokens; if API rejects, retry with max_completion_tokens
+    let response;
+    try {
+      response = await client.chat.completions.create(makePayload(false, 'custom'));
+    } catch (e) {
+      const msg = String(e?.message || e);
+      try {
+        if (/max_tokens(.+?)not supported|Use 'max_completion_tokens'/i.test(msg)) {
+          response = await client.chat.completions.create(makePayload(true, 'custom'));
+        } else if (/temperature(.+?)Only the default\s*\(\s*1\s*\)\s*value is supported/i.test(msg)) {
+          // Retry with temperature omitted (defaults to 1) or explicitly 1
+          response = await client.chat.completions.create(makePayload(false, 'omit'));
+        } else {
+          throw e;
+        }
+      } catch (e2) {
+        const msg2 = String(e2?.message || e2);
+        if (/temperature(.+?)Only the default\s*\(\s*1\s*\)\s*value is supported/i.test(msg2)) {
+          // Final retry: with max_completion_tokens (if needed) and temperature omitted
+          response = await client.chat.completions.create(makePayload(true, 'omit'));
+        } else {
+          throw e2;
+        }
+      }
+    }
 
     return { success: true, response };
   } catch (error) {
@@ -77,13 +106,39 @@ export const streamMessage = async (messages, systemPrompt, onChunk, options = {
       ...messages
     ];
 
-    const stream = await client.chat.completions.create({
-      model: options.model || config.openai.model,
+    const model = options.model || config.openai.model;
+    const makePayload = (useMaxCompletion, tempMode = 'custom') => ({
+      model,
       messages: fullMessages,
-      max_tokens: options.maxTokens || config.openai.maxTokens,
-      temperature: options.temperature || 0.7,
-      stream: true
+      ...(tempMode === 'custom' ? { temperature: options.temperature ?? 0.7 } : {}),
+      stream: true,
+      ...(useMaxCompletion
+        ? { max_completion_tokens: options.maxTokens || config.openai.maxTokens }
+        : { max_tokens: options.maxTokens || config.openai.maxTokens })
     });
+
+    let stream;
+    try {
+      stream = await client.chat.completions.create(makePayload(false, 'custom'));
+    } catch (e) {
+      const msg = String(e?.message || e);
+      try {
+        if (/max_tokens(.+?)not supported|Use 'max_completion_tokens'/i.test(msg)) {
+          stream = await client.chat.completions.create(makePayload(true, 'custom'));
+        } else if (/temperature(.+?)Only the default\s*\(\s*1\s*\)\s*value is supported/i.test(msg)) {
+          stream = await client.chat.completions.create(makePayload(false, 'omit'));
+        } else {
+          throw e;
+        }
+      } catch (e2) {
+        const msg2 = String(e2?.message || e2);
+        if (/temperature(.+?)Only the default\s*\(\s*1\s*\)\s*value is supported/i.test(msg2)) {
+          stream = await client.chat.completions.create(makePayload(true, 'omit'));
+        } else {
+          throw e2;
+        }
+      }
+    }
 
     let fullText = '';
 
