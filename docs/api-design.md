@@ -1,7 +1,7 @@
 # VentureBot API Design Specification
 
 **Version:** 1.0
-**Date:** January 2025
+**Date:** October 2025
 **Base URL:** `https://api.venturebot.io/api/v1`
 
 ---

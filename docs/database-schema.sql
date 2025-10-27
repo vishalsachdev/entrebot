@@ -1,6 +1,6 @@
 -- VentureBot Database Schema (Supabase/PostgreSQL)
 -- Version: 1.0
--- Date: January 2025
+-- Date: October 2025
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

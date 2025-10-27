@@ -4,6 +4,7 @@
  */
 
 import { BaseAgent } from './base.js';
+import { conversationQueries } from '../database/queries.js';
 
 const SYSTEM_PROMPT = `You are VentureBot, a friendly onboarding agent who helps users discover business ideas by focusing on real pain points.
 
@@ -22,6 +23,7 @@ Guidelines:
 - Use **bold** for important questions
 - Be encouraging and supportive
 - Store information in memory as you collect it
+- NEVER repeat the welcome message unless starting a completely new session
 
 Memory to store:
 - USER_PROFILE: {name: "user's name"}
@@ -40,24 +42,57 @@ export class OnboardingAgent extends BaseAgent {
    */
   async chat(sessionId, userMessage, onChunk = null) {
     try {
+      // Get conversation history
+      const historyResult = await conversationQueries.getHistory(sessionId, 10);
+      const conversationHistory = historyResult.success ? historyResult.messages : [];
+      
       // Get existing memory
       const memory = await this.getAllMemory(sessionId);
 
-      // Build minimal context for agent
-      let contextMessage = '';
-      if (memory.USER_PROFILE?.name) {
-        contextMessage += `User's name: ${memory.USER_PROFILE.name}`;
+      // Build conversation messages for AI (include history)
+      const messages = [];
+      
+      // Add conversation history (exclude system messages and limit to last few exchanges)
+      const recentHistory = conversationHistory.slice(-6); // Last 3 exchanges
+      for (const msg of recentHistory) {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          messages.push({
+            role: msg.role,
+            content: msg.content
+          });
+        }
       }
-      if (memory.USER_PAIN?.description) {
-        contextMessage += `\nUser's pain: ${memory.USER_PAIN.description}`;
+      
+      // Add current user message if not already in history
+      const lastMessage = recentHistory[recentHistory.length - 1];
+      if (!lastMessage || lastMessage.role !== 'user' || lastMessage.content !== userMessage) {
+        messages.push({
+          role: 'user',
+          content: userMessage
+        });
       }
 
-      const messages = [
-        {
-          role: 'user',
-          content: contextMessage ? `${contextMessage}\n\nNew message: ${userMessage}` : userMessage
+      // Add memory context as a system message if needed
+      if (memory.USER_PROFILE?.name || memory.USER_PAIN?.description) {
+        let memoryContext = 'Context from previous conversations:';
+        if (memory.USER_PROFILE?.name) {
+          memoryContext += `\n- User name: ${memory.USER_PROFILE.name}`;
         }
-      ];
+        if (memory.USER_PAIN?.description) {
+          memoryContext += `\n- User pain point: ${memory.USER_PAIN.description}`;
+        }
+        
+        // Insert memory context before the last few messages
+        if (messages.length > 2) {
+          messages.splice(-2, 0, {
+            role: 'system',
+            content: memoryContext
+          });
+        }
+      }
+
+      // Extract and store information from user messages
+      await this.extractAndStoreInfo(sessionId, userMessage, memory);
 
       // Stream response if callback provided
       if (onChunk) {
@@ -67,6 +102,54 @@ export class OnboardingAgent extends BaseAgent {
       return await this.send(messages);
     } catch (error) {
       throw new Error(`Onboarding agent error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Extract and store user information from messages
+   */
+  async extractAndStoreInfo(sessionId, userMessage, memory) {
+    const message = userMessage.toLowerCase().trim();
+    
+    // Extract name if not already stored
+    if (!memory.USER_PROFILE?.name) {
+      // Simple name extraction - look for patterns like "my name is X" or just single words that could be names
+      const namePatterns = [
+        /my name is (\w+)/i,
+        /i'm (\w+)/i,
+        /i am (\w+)/i,
+        /call me (\w+)/i
+      ];
+      
+      for (const pattern of namePatterns) {
+        const match = message.match(pattern);
+        if (match && match[1]) {
+          await this.setMemory(sessionId, 'USER_PROFILE', { name: match[1] });
+          break;
+        }
+      }
+      
+      // If no pattern matched, check if it's a single word (likely a name)
+      if (!memory.USER_PROFILE?.name && message.split(' ').length === 1 && message.length > 1) {
+        await this.setMemory(sessionId, 'USER_PROFILE', { name: userMessage.trim() });
+      }
+    }
+    
+    // Extract pain points if not already stored
+    if (!memory.USER_PAIN?.description && memory.USER_PROFILE?.name) {
+      // Look for pain indicators after we have the name
+      const painIndicators = [
+        'frustrated', 'annoying', 'problem', 'issue', 'struggle', 
+        'difficult', 'hard', 'hate', 'don\'t like', 'wish', 'pain'
+      ];
+      
+      if (painIndicators.some(indicator => message.includes(indicator))) {
+        await this.setMemory(sessionId, 'USER_PAIN', { 
+          description: userMessage.trim(),
+          frequency: 'unknown',
+          severity: 5
+        });
+      }
     }
   }
 
