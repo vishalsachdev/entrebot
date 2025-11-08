@@ -174,7 +174,7 @@ export default function ConversationView({ sessionId, onMessageSent }: Conversat
                       msg.role === 'user' ? 'text-primary-100' : 'text-neutral-500'
                     }`}
                   >
-                    {formatTimestamp(msg.timestamp)}
+                    {formatTimestamp(msg.created_at)}
                   </div>
                 </div>
               </motion.div>
