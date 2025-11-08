@@ -119,11 +119,48 @@ export interface Message {
   };
 }
 
+// Database Model types
+export interface DbUser {
+  id: string;
+  email: string;
+  name: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbSession {
+  id: string;
+  user_id: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbConversation {
+  id: string;
+  session_id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+}
+
+export interface DbMemory {
+  id: string;
+  session_id: string;
+  key: string;
+  value: any;
+  created_at: string;
+  updated_at: string;
+}
+
 // API Response types
 export interface ApiResponse<T> {
   data: T;
   success: boolean;
   message?: string;
+  error?: string;
 }
 
 export interface PaginatedResponse<T> {
@@ -134,6 +171,44 @@ export interface PaginatedResponse<T> {
     total: number;
     totalPages: number;
   };
+}
+
+// API Error types
+export interface ApiError {
+  message: string;
+  code?: string;
+  status?: number;
+  details?: any;
+}
+
+// Request types
+export interface CreateUserRequest {
+  email: string;
+  name: string;
+  metadata?: Record<string, any>;
+}
+
+export interface UpdateUserRequest {
+  name?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface CreateSessionRequest {
+  user_id: string;
+  metadata?: Record<string, any>;
+}
+
+export interface AddMessageRequest {
+  session_id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  metadata?: Record<string, any>;
+}
+
+export interface SetMemoryRequest {
+  session_id: string;
+  key: string;
+  value: any;
 }
 
 // Form types
