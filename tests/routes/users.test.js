@@ -81,7 +81,7 @@ describe('User Routes', () => {
 
       expect(response.status).toBe(201);
       expect(response.body.success).toBe(true);
-      expect(response.body.user).toEqual(mockUser);
+      expect(response.body.data).toEqual(mockUser);
       expect(userQueries.create).toHaveBeenCalledWith(
         validUserData.email,
         { name: validUserData.name, phone: validUserData.phone }
@@ -212,7 +212,7 @@ describe('User Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-      expect(response.body.user).toEqual(mockUser);
+      expect(response.body.data).toEqual(mockUser);
       expect(userQueries.getByEmail).toHaveBeenCalledWith('test@example.com');
     });
 
@@ -227,7 +227,7 @@ describe('User Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-      expect(response.body.user).toBeNull();
+      expect(response.body.data).toBeNull();
     });
 
     it('should handle database errors', async () => {
@@ -285,7 +285,7 @@ describe('User Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-      expect(response.body.user).toEqual(mockUpdatedUser);
+      expect(response.body.data).toEqual(mockUpdatedUser);
       expect(userQueries.update).toHaveBeenCalledWith(userId, updateData);
     });
 

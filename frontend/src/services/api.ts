@@ -361,7 +361,7 @@ export const userService = {
     userId: string,
     updates: UpdateUserRequest
   ): Promise<DbUser> {
-    const response = await apiClient.patch<ApiResponse<DbUser>>(
+    const response = await apiClient.put<ApiResponse<DbUser>>(
       `/users/${userId}`,
       updates
     );

@@ -5,6 +5,7 @@
  * Copy these examples into your components as needed.
  */
 
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   userService,
@@ -483,6 +484,3 @@ export function CompleteExample() {
     </div>
   );
 }
-
-// Import useState and useEffect
-import { useState, useEffect } from 'react';

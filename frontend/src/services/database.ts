@@ -40,7 +40,7 @@ export const sessionService = {
 // Conversation endpoints
 export const conversationService = {
   getConversations: (sessionId: string) =>
-    apiClient.get<DbConversation[]>(`/sessions/${sessionId}/conversations`),
+    apiClient.get<DbConversation[]>(`/conversations/${sessionId}`),
 
   createMessage: (sessionId: string, role: 'user' | 'assistant' | 'system', content: string) =>
     apiClient.post<DbConversation>('/conversations', {
