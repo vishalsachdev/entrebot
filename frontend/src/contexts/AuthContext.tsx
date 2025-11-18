@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export interface User {
   id: string;
@@ -34,6 +35,7 @@ interface AuthProviderProps {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
 
   // Check for existing session on mount
   useEffect(() => {
@@ -58,7 +60,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     checkAuth();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     try {
       setIsLoading(true);
 
@@ -80,16 +82,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       localStorage.setItem('user', JSON.stringify(mockUser));
       setUser(mockUser);
 
-      window.location.href = '/';
+      // Use navigate instead of window.location.href
+      navigate('/', { replace: true });
     } catch (error) {
       console.error('Login failed:', error);
       throw new Error('Invalid email or password');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [navigate]);
 
-  const register = async (name: string, email: string, password: string) => {
+  const register = useCallback(async (name: string, email: string, password: string) => {
     try {
       setIsLoading(true);
 
@@ -111,39 +114,48 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       localStorage.setItem('user', JSON.stringify(mockUser));
       setUser(mockUser);
 
-      window.location.href = '/';
+      // Use navigate instead of window.location.href
+      navigate('/', { replace: true });
     } catch (error) {
       console.error('Registration failed:', error);
       throw new Error('Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [navigate]);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
     setUser(null);
-    window.location.href = '/login';
-  };
+    // Use navigate instead of window.location.href
+    navigate('/login', { replace: true });
+  }, [navigate]);
 
-  const updateUser = (updates: Partial<User>) => {
-    if (user) {
-      const updatedUser = { ...user, ...updates };
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-    }
-  };
+  const updateUser = useCallback((updates: Partial<User>) => {
+    setUser(currentUser => {
+      if (currentUser) {
+        const updatedUser = { ...currentUser, ...updates };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        return updatedUser;
+      }
+      return currentUser;
+    });
+  }, []);
 
-  const value: AuthContextType = {
-    user,
-    isAuthenticated: !!user,
-    isLoading,
-    login,
-    register,
-    logout,
-    updateUser,
-  };
+  // Memoize context value to prevent unnecessary re-renders
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      isAuthenticated: !!user,
+      isLoading,
+      login,
+      register,
+      logout,
+      updateUser,
+    }),
+    [user, isLoading, login, register, logout, updateUser]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
