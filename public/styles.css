@@ -1,0 +1,55 @@
+:root {
+  --bg: #0b0f14;
+  --card: #121821;
+  --text: #e6edf3;
+  --muted: #9fb0c0;
+  --accent: #3aa0ff;
+  --ok: #39d98a;
+  --err: #ff6b6b;
+  --border: #1f2a37;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: var(--text); }
+
+.container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.sub { color: var(--muted); margin-top: -6px; }
+
+.grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
+.col-span-2 { grid-column: span 2; }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.kv { margin-top: 8px; }
+.kv div { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
+.kv span { color: var(--muted); }
+
+label { display: block; margin: 8px 0; }
+input, select, textarea { width: 100%; border-radius: 8px; border: 1px solid var(--border); background: #0e141b; color: var(--text); padding: 10px; outline: none; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(58,160,255,0.2); }
+
+button { background: var(--accent); color: #001428; border: none; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.status { font-weight: 600; }
+.status.ok { color: var(--ok); }
+.status.err { color: var(--err); }
+
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; }
+.small { font-size: 12px; }
+.foot { color: var(--muted); text-align: center; }
+
+.chat { border: 1px solid var(--border); border-radius: 8px; padding: 8px; max-height: 360px; overflow: auto; background: #0e141b; }
+.msg { padding: 8px; margin: 6px 0; border-radius: 8px; }
+.msg.user { background: rgba(58,160,255,0.12); }
+.msg.assistant { background: rgba(57,217,138,0.12); }
+.meta { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+
+.list { list-style: none; padding: 0; margin: 0; }
+.list li { padding: 8px; border-bottom: 1px solid var(--border); }
+
+.hint { color: var(--muted); font-size: 12px; }
+
+
