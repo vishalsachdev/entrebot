@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [-] 1. Fix AuthContext navigation
+- [ ] 1. Fix AuthContext navigation
   - Remove `window.location.href` usage that causes issues
   - Use `useNavigate` hook properly inside AuthProvider
   - Ensure AuthProvider is inside Router context

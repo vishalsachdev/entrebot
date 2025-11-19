@@ -2,12 +2,11 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   AuthProvider,
-  ProjectProvider,
-  AgentProvider,
-  ProgressProvider,
+  AppContextProvider,
 } from './contexts';
 import { ProtectedRoute } from './components/auth';
 import { AppShell } from './components/layout';
+import { ContextErrorBoundary } from './components/ContextErrorBoundary';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -31,93 +30,91 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <AuthProvider>
-          <ProjectProvider>
-            <AgentProvider>
-              <ProgressProvider>
-                <Routes>
-            {/* Public Routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+      <ContextErrorBoundary>
+        <Router>
+          <AuthProvider>
+            <AppContextProvider>
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
 
-            {/* Protected Routes with AppShell */}
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <AppShell>
-                    <Dashboard />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/projects"
-              element={
-                <ProtectedRoute>
-                  <AppShell>
-                    <Projects />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/agents"
-              element={
-                <ProtectedRoute>
-                  <AppShell>
-                    <Agents />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/progress"
-              element={
-                <ProtectedRoute>
-                  <AppShell>
-                    <Progress />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/history"
-              element={
-                <ProtectedRoute>
-                  <AppShell>
-                    <History />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <AppShell>
-                    <Settings />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/components"
-              element={
-                <ProtectedRoute>
-                  <AppShell>
-                    <ComponentDemo />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
-                </Routes>
-              </ProgressProvider>
-            </AgentProvider>
-          </ProjectProvider>
-        </AuthProvider>
-      </Router>
+                {/* Protected Routes with AppShell */}
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <Dashboard />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/projects"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <Projects />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/agents"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <Agents />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/progress"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <Progress />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/history"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <History />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <Settings />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/components"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <ComponentDemo />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+              </Routes>
+            </AppContextProvider>
+          </AuthProvider>
+        </Router>
+      </ContextErrorBoundary>
     </QueryClientProvider>
   );
 }

@@ -9,3 +9,4 @@ export type { AgentContextType } from './AgentContext';
 
 export { ProgressProvider, useProgress } from './ProgressContext';
 export type { ProgressContextType } from './ProgressContext';
+export * from './AppContextProvider';

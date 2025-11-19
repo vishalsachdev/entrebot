@@ -28,6 +28,36 @@ export const useAuth = () => {
   return context;
 };
 
+// Internal navigation wrapper
+interface NavigationHelper {
+  navigateTo: (path: string) => void;
+  replace: (path: string) => void;
+}
+
+const useAuthNavigation = (): NavigationHelper => {
+  const navigate = useNavigate();
+
+  return {
+    navigateTo: (path: string) => {
+      try {
+        navigate(path);
+      } catch (error) {
+        // Fallback to window.location if navigate fails
+        console.warn('Navigation hook failed, using window.location');
+        window.location.href = path;
+      }
+    },
+    replace: (path: string) => {
+      try {
+        navigate(path, { replace: true });
+      } catch (error) {
+        console.warn('Navigation hook failed, using window.location');
+        window.location.replace(path);
+      }
+    },
+  };
+};
+
 interface AuthProviderProps {
   children: ReactNode;
 }
@@ -35,7 +65,7 @@ interface AuthProviderProps {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
+  const { replace } = useAuthNavigation();
 
   // Check for existing session on mount
   useEffect(() => {
@@ -82,15 +112,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       localStorage.setItem('user', JSON.stringify(mockUser));
       setUser(mockUser);
 
-      // Use navigate instead of window.location.href
-      navigate('/', { replace: true });
+      // Use safe navigation
+      replace('/');
     } catch (error) {
       console.error('Login failed:', error);
       throw new Error('Invalid email or password');
     } finally {
       setIsLoading(false);
     }
-  }, [navigate]);
+  }, [replace]);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
     try {
@@ -114,23 +144,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       localStorage.setItem('user', JSON.stringify(mockUser));
       setUser(mockUser);
 
-      // Use navigate instead of window.location.href
-      navigate('/', { replace: true });
+      // Use safe navigation
+      replace('/');
     } catch (error) {
       console.error('Registration failed:', error);
       throw new Error('Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  }, [navigate]);
+  }, [replace]);
 
   const logout = useCallback(() => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
     setUser(null);
-    // Use navigate instead of window.location.href
-    navigate('/login', { replace: true });
-  }, [navigate]);
+    // Use safe navigation
+    replace('/login');
+  }, [replace]);
 
   const updateUser = useCallback((updates: Partial<User>) => {
     setUser(currentUser => {
