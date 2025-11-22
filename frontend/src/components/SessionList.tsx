@@ -30,7 +30,7 @@ export default function SessionList({
       setError(null);
       const data = await sessionService.getUserSessions(userId);
       // Sort by most recently updated first
-      const sorted = data.sort((a, b) =>
+      const sorted = data.sort((a: DbSession, b: DbSession) =>
         new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
       );
       setSessions(sorted);

@@ -2,19 +2,16 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Loader2, Bot, User as UserIcon } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
-import { useAuth } from '../../contexts/AuthContext';
 import { Button, Textarea, Card, Badge } from '../ui';
 import { cn } from '../../utils/cn';
 import type { Message } from '../../types';
 
 interface ChatInterfaceProps {
-  sessionId?: string;
   className?: string;
 }
 
-const ChatInterface = ({ sessionId, className }: ChatInterfaceProps) => {
+const ChatInterface = ({ className }: ChatInterfaceProps) => {
   const { currentAgent } = useAgent();
-  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);

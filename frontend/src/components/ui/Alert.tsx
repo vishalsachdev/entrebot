@@ -1,4 +1,5 @@
-import { HTMLAttributes, ReactNode, forwardRef } from 'react';
+import { forwardRef } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 import { AlertCircle, CheckCircle, Info, XCircle, X } from 'lucide-react';
 import { cn } from '../../utils/cn';
 

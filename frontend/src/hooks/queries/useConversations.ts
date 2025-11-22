@@ -103,7 +103,7 @@ export const useAddMessage = () => {
 
       return { previousMessages };
     },
-    onError: (err, { sessionId }, context) => {
+    onError: (_err, { sessionId }, context) => {
       // Rollback on error
       if (context?.previousMessages) {
         queryClient.setQueryData(
@@ -154,7 +154,7 @@ export const useUpdateMessage = () => {
 
       return { previousMessage };
     },
-    onError: (err, { messageId }, context) => {
+    onError: (_err, { messageId }, context) => {
       if (context?.previousMessage) {
         queryClient.setQueryData(
           conversationKeys.detail(messageId),

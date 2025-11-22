@@ -4,8 +4,8 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  createdAt: Date;
-  preferences: UserPreferences;
+  createdAt: string;
+  preferences?: UserPreferences;
 }
 
 export interface UserPreferences {

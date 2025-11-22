@@ -14,7 +14,6 @@ import {
   Badge,
   Alert,
   Spinner,
-  Skeleton,
   SkeletonCard,
   Layout,
   Container,

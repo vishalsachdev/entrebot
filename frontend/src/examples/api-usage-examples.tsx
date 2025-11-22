@@ -14,12 +14,7 @@ import {
   memoryService,
   type ApiError,
 } from '../services/api';
-import type {
-  DbUser,
-  DbSession,
-  DbConversation,
-  DbMemory,
-} from '../types';
+import type { DbConversation } from '../types';
 
 // ============================================================================
 // React Query Hooks

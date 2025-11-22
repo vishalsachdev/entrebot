@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,7 +13,6 @@ const Login = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { login } = useAuth();
-  const location = useLocation();
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};

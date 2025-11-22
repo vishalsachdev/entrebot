@@ -78,13 +78,13 @@ export const useUpdateUser = () => {
 
       return { previousUser };
     },
-    onError: (err, { userId }, context) => {
+    onError: (_err, { userId }, context) => {
       // Rollback on error
       if (context?.previousUser) {
         queryClient.setQueryData(userKeys.detail(userId), context.previousUser);
       }
     },
-    onSettled: (data, error, { userId }) => {
+    onSettled: (_data, _error, { userId }) => {
       // Refetch after error or success
       queryClient.invalidateQueries({ queryKey: userKeys.detail(userId) });
       queryClient.invalidateQueries({ queryKey: userKeys.lists() });
