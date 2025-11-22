@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { memoryService } from '../../services/api';
-import type { DbMemory } from '../../types';
 
 // Query Keys
 export const memoryKeys = {
@@ -78,7 +77,7 @@ export const useSetMemory = () => {
 
       return { previousMemory };
     },
-    onError: (err, { sessionId, key }, context) => {
+    onError: (_err, { sessionId, key }, context) => {
       // Rollback on error
       if (context?.previousMemory !== undefined) {
         queryClient.setQueryData(
@@ -87,7 +86,7 @@ export const useSetMemory = () => {
         );
       }
     },
-    onSettled: (data, error, { sessionId, key }) => {
+    onSettled: (_data, _error, { sessionId, key }) => {
       // Refetch after error or success
       queryClient.invalidateQueries({
         queryKey: memoryKeys.detail(sessionId, key),
@@ -123,7 +122,7 @@ export const useUpdateMemory = () => {
 
       return { previousMemory };
     },
-    onError: (err, { sessionId, key }, context) => {
+    onError: (_err, { sessionId, key }, context) => {
       if (context?.previousMemory !== undefined) {
         queryClient.setQueryData(
           memoryKeys.detail(sessionId, key),
@@ -131,7 +130,7 @@ export const useUpdateMemory = () => {
         );
       }
     },
-    onSettled: (data, error, { sessionId, key }) => {
+    onSettled: (_data, _error, { sessionId, key }) => {
       queryClient.invalidateQueries({
         queryKey: memoryKeys.detail(sessionId, key),
       });
@@ -193,7 +192,7 @@ export const useSetMultipleMemory = () => {
 
       return { previousMemory };
     },
-    onError: (err, { sessionId }, context) => {
+    onError: (_err, { sessionId }, context) => {
       if (context?.previousMemory) {
         queryClient.setQueryData(
           memoryKeys.list(sessionId),
@@ -201,7 +200,7 @@ export const useSetMultipleMemory = () => {
         );
       }
     },
-    onSettled: (data, error, { sessionId }) => {
+    onSettled: (_data, _error, { sessionId }) => {
       queryClient.invalidateQueries({ queryKey: memoryKeys.list(sessionId) });
     },
   });

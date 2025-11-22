@@ -1,8 +1,8 @@
-import { Fragment, ReactNode } from 'react';
+import { Fragment } from 'react';
+import type { ReactNode } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X } from 'lucide-react';
 import { cn } from '../../utils/cn';
-import Button from './Button';
 
 export interface ModalProps {
   isOpen: boolean;

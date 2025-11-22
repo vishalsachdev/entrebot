@@ -1,12 +1,9 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { User } from '../types';
 
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  createdAt: string;
-}
+// Re-export for backward compatibility
+export type { User };
 
 export interface AuthContextType {
   user: User | null;
@@ -90,7 +87,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     checkAuth();
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, _password: string) => {
     try {
       setIsLoading(true);
 
@@ -122,7 +119,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, [replace]);
 
-  const register = useCallback(async (name: string, email: string, password: string) => {
+  const register = useCallback(async (name: string, email: string, _password: string) => {
     try {
       setIsLoading(true);
 

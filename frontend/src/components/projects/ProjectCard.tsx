@@ -7,11 +7,9 @@ import type { Project } from '../../types';
 interface ProjectCardProps {
   project: Project;
   onClick?: () => void;
-  onEdit?: () => void;
-  onDelete?: () => void;
 }
 
-const ProjectCard = ({ project, onClick, onEdit, onDelete }: ProjectCardProps) => {
+const ProjectCard = ({ project, onClick }: ProjectCardProps) => {
   const statusConfig = {
     active: { color: 'bg-green-100 text-green-800', label: 'Active' },
     paused: { color: 'bg-yellow-100 text-yellow-800', label: 'Paused' },

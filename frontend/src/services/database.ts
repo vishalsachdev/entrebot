@@ -1,5 +1,5 @@
 // Database API service methods
-import apiClient from './api';
+import { apiClient } from './api';
 import type {
   DbUser,
   DbSession,

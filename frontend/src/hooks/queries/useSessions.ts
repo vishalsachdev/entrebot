@@ -93,7 +93,7 @@ export const useUpdateSession = () => {
 
       return { previousSession };
     },
-    onError: (err, { sessionId }, context) => {
+    onError: (_err, { sessionId }, context) => {
       if (context?.previousSession) {
         queryClient.setQueryData(
           sessionKeys.detail(sessionId),
@@ -101,7 +101,7 @@ export const useUpdateSession = () => {
         );
       }
     },
-    onSettled: (data, error, { sessionId }) => {
+    onSettled: (_data, _error, { sessionId }) => {
       queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
     },
   });
