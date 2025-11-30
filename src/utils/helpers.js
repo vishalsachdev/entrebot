@@ -5,7 +5,7 @@
 /**
  * Sleep for specified milliseconds
  */
-export const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Retry function with exponential backoff
@@ -26,7 +26,7 @@ export const retry = async (fn, maxAttempts = 3, delay = 1000) => {
 /**
  * Sanitize error for user display
  */
-export const sanitizeError = (error) => {
+export const sanitizeError = error => {
   if (error.message.includes('API')) {
     return 'Service temporarily unavailable. Please try again.';
   }

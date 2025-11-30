@@ -13,15 +13,11 @@ let supabase = null;
  */
 export const initializeSupabase = () => {
   try {
-    supabase = createClient(
-      config.supabase.url,
-      config.supabase.anonKey,
-      {
-        auth: {
-          persistSession: false
-        }
+    supabase = createClient(config.supabase.url, config.supabase.anonKey, {
+      auth: {
+        persistSession: false
       }
-    );
+    });
 
     logger.info('✅ Supabase client initialized');
     return supabase;

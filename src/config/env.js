@@ -7,11 +7,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const required = [
-  'SUPABASE_URL',
-  'SUPABASE_ANON_KEY',
-  'OPENAI_API_KEY'
-];
+const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'OPENAI_API_KEY'];
 
 const missing = required.filter(key => !process.env[key]);
 

@@ -13,17 +13,10 @@ const logFormat = printf(({ level, message, timestamp, stack }) => {
 
 export const logger = winston.createLogger({
   level: config.logLevel,
-  format: combine(
-    errors({ stack: true }),
-    timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-    logFormat
-  ),
+  format: combine(errors({ stack: true }), timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
   transports: [
     new winston.transports.Console({
-      format: combine(
-        colorize(),
-        logFormat
-      )
+      format: combine(colorize(), logFormat)
     }),
     new winston.transports.File({
       filename: 'logs/error.log',
@@ -36,12 +29,14 @@ export const logger = winston.createLogger({
 });
 
 if (config.nodeEnv !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: combine(
-      colorize(),
-      printf(({ level, message }) => `${level}: ${message}`)
-    )
-  }));
+  logger.add(
+    new winston.transports.Console({
+      format: combine(
+        colorize(),
+        printf(({ level, message }) => `${level}: ${message}`)
+      )
+    })
+  );
 }
 
 export default logger;

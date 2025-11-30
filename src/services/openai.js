@@ -44,10 +44,7 @@ export const sendMessage = async (messages, systemPrompt, options = {}) => {
     const client = getOpenAI();
 
     // Combine system prompt with messages
-    const fullMessages = [
-      { role: 'system', content: systemPrompt },
-      ...messages
-    ];
+    const fullMessages = [{ role: 'system', content: systemPrompt }, ...messages];
 
     const model = options.model || config.openai.model;
     const makePayload = (useMaxCompletion, tempMode = 'custom') => ({
@@ -69,7 +66,9 @@ export const sendMessage = async (messages, systemPrompt, options = {}) => {
       try {
         if (/max_tokens(.+?)not supported|Use 'max_completion_tokens'/i.test(msg)) {
           response = await client.chat.completions.create(makePayload(true, 'custom'));
-        } else if (/temperature(.+?)Only the default\s*\(\s*1\s*\)\s*value is supported/i.test(msg)) {
+        } else if (
+          /temperature(.+?)Only the default\s*\(\s*1\s*\)\s*value is supported/i.test(msg)
+        ) {
           // Retry with temperature omitted (defaults to 1) or explicitly 1
           response = await client.chat.completions.create(makePayload(false, 'omit'));
         } else {
@@ -101,10 +100,7 @@ export const streamMessage = async (messages, systemPrompt, onChunk, options = {
     const client = getOpenAI();
 
     // Combine system prompt with messages
-    const fullMessages = [
-      { role: 'system', content: systemPrompt },
-      ...messages
-    ];
+    const fullMessages = [{ role: 'system', content: systemPrompt }, ...messages];
 
     const model = options.model || config.openai.model;
     const makePayload = (useMaxCompletion, tempMode = 'custom') => ({
@@ -125,7 +121,9 @@ export const streamMessage = async (messages, systemPrompt, onChunk, options = {
       try {
         if (/max_tokens(.+?)not supported|Use 'max_completion_tokens'/i.test(msg)) {
           stream = await client.chat.completions.create(makePayload(true, 'custom'));
-        } else if (/temperature(.+?)Only the default\s*\(\s*1\s*\)\s*value is supported/i.test(msg)) {
+        } else if (
+          /temperature(.+?)Only the default\s*\(\s*1\s*\)\s*value is supported/i.test(msg)
+        ) {
           stream = await client.chat.completions.create(makePayload(false, 'omit'));
         } else {
           throw e;

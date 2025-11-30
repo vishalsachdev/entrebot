@@ -54,7 +54,9 @@ app.use('/api', routes);
 
 // SPA fallback for frontend routes
 app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api')) return next();
+  if (req.path.startsWith('/api')) {
+    return next();
+  }
 
   const target = hasBuiltFrontend
     ? path.join(distDir, 'index.html')
@@ -100,12 +102,12 @@ const startServer = async () => {
 };
 
 // Handle uncaught errors
-process.on('unhandledRejection', (error) => {
+process.on('unhandledRejection', error => {
   logger.error('Unhandled rejection:', error);
   process.exit(1);
 });
 
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', error => {
   logger.error('Uncaught exception:', error);
   process.exit(1);
 });

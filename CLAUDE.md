@@ -350,3 +350,17 @@ NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.
 NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
 Never save working files, text/mds and tests to the root folder.
+
+# Codebase Coherence Rules
+
+**CRITICAL: Before modifying any code, read `/docs/CONTEXT.md`** - This is the single source of truth for:
+- Architecture and module boundaries
+- Naming conventions (files, variables, memory keys)
+- Forbidden patterns to avoid
+- Agent development guidelines
+
+**Memory Keys:** All memory keys MUST be `UPPER_SNAKE_CASE` (e.g., `USER_PROFILE`, `SELECTED_IDEA`). See ADR-0001 in `/docs/adr/`.
+
+**Architecture Decision Records:** When making architectural changes, check `/docs/adr/` for existing decisions and create new ADRs for significant changes.
+
+**Linting:** Run `npm run lint` before committing. Pre-commit hooks will auto-fix and format code.

@@ -28,99 +28,112 @@ const updateUserSchema = Joi.object({
  * Create new user or return existing
  * POST /api/users
  */
-router.post('/', validateBody(createUserSchema), asyncHandler(async (req, res) => {
-  const { email, name, phone } = req.body;
+router.post(
+  '/',
+  validateBody(createUserSchema),
+  asyncHandler(async (req, res) => {
+    const { email, name, phone } = req.body;
 
-  logger.info(`Creating or getting user with email: ${email}`);
+    logger.info(`Creating or getting user with email: ${email}`);
 
-  // Try to create user
-  const result = await userQueries.create(email, { name, phone });
+    // Try to create user
+    const result = await userQueries.create(email, { name, phone });
 
-  if (result.success) {
-    logger.info(`User created successfully: ${result.user.id}`);
-    return res.status(201).json({
-      success: true,
-      data: result.user
-    });
-  }
-
-  // If duplicate key error, get existing user
-  if (result.error?.includes('duplicate key')) {
-    logger.info(`User exists, fetching: ${email}`);
-    const existingResult = await userQueries.getByEmail(email);
-    if (existingResult.success && existingResult.user) {
-      return res.status(200).json({
+    if (result.success) {
+      logger.info(`User created successfully: ${result.user.id}`);
+      return res.status(201).json({
         success: true,
-        data: existingResult.user
+        data: result.user
       });
     }
-  }
 
-  logger.error(`Failed to create user: ${result.error}`);
-  throw new Error(result.error);
-}));
+    // If duplicate key error, get existing user
+    if (result.error?.includes('duplicate key')) {
+      logger.info(`User exists, fetching: ${email}`);
+      const existingResult = await userQueries.getByEmail(email);
+      if (existingResult.success && existingResult.user) {
+        return res.status(200).json({
+          success: true,
+          data: existingResult.user
+        });
+      }
+    }
+
+    logger.error(`Failed to create user: ${result.error}`);
+    throw new Error(result.error);
+  })
+);
 
 /**
  * Get user by email
  * GET /api/users/:email
  */
-router.get('/:email', authenticate, asyncHandler(async (req, res) => {
-  const { email } = req.params;
+router.get(
+  '/:email',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const { email } = req.params;
 
-  logger.info(`Fetching user by email: ${email}`);
+    logger.info(`Fetching user by email: ${email}`);
 
-  const result = await userQueries.getByEmail(email);
+    const result = await userQueries.getByEmail(email);
 
-  if (!result.success) {
-    logger.error(`Failed to fetch user: ${result.error}`);
-    throw new Error(result.error);
-  }
+    if (!result.success) {
+      logger.error(`Failed to fetch user: ${result.error}`);
+      throw new Error(result.error);
+    }
 
-  if (!result.user) {
-    logger.info(`User not found: ${email}`);
-    const error = new Error('User not found');
-    error.statusCode = 404;
-    throw error;
-  }
+    if (!result.user) {
+      logger.info(`User not found: ${email}`);
+      const error = new Error('User not found');
+      error.statusCode = 404;
+      throw error;
+    }
 
-  logger.info(`User retrieved successfully: ${result.user.id}`);
+    logger.info(`User retrieved successfully: ${result.user.id}`);
 
-  res.json({
-    success: true,
-    data: result.user
-  });
-}));
+    res.json({
+      success: true,
+      data: result.user
+    });
+  })
+);
 
 /**
  * Update user profile
  * PUT /api/users/:userId
  */
-router.put('/:userId', authenticate, validateBody(updateUserSchema), asyncHandler(async (req, res) => {
-  const { userId } = req.params;
-  const updates = req.body;
+router.put(
+  '/:userId',
+  authenticate,
+  validateBody(updateUserSchema),
+  asyncHandler(async (req, res) => {
+    const { userId } = req.params;
+    const updates = req.body;
 
-  logger.info(`Updating user ${userId} with data:`, updates);
+    logger.info(`Updating user ${userId} with data:`, updates);
 
-  const result = await userQueries.update(userId, updates);
+    const result = await userQueries.update(userId, updates);
 
-  if (!result.success) {
-    logger.error(`Failed to update user: ${result.error}`);
-    throw new Error(result.error);
-  }
+    if (!result.success) {
+      logger.error(`Failed to update user: ${result.error}`);
+      throw new Error(result.error);
+    }
 
-  if (!result.user) {
-    logger.info(`User not found for update: ${userId}`);
-    const error = new Error('User not found');
-    error.statusCode = 404;
-    throw error;
-  }
+    if (!result.user) {
+      logger.info(`User not found for update: ${userId}`);
+      const error = new Error('User not found');
+      error.statusCode = 404;
+      throw error;
+    }
 
-  logger.info(`User updated successfully: ${userId}`);
+    logger.info(`User updated successfully: ${userId}`);
 
-  res.json({
-    success: true,
-    data: result.user
-  });
-}));
+    res.json({
+      success: true,
+      data: result.user
+    });
+  })
+);
 
 export default router;

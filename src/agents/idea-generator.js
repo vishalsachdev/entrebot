@@ -79,20 +79,20 @@ export class IdeaGeneratorAgent extends BaseAgent {
       // Get conversation history
       const historyResult = await conversationQueries.getHistory(sessionId, 20);
       const conversationHistory = historyResult.success ? historyResult.messages : [];
-      
+
       // Get context from memory
       const userPain = await this.getMemory(sessionId, 'USER_PAIN');
       const userProfile = await this.getMemory(sessionId, 'USER_PROFILE');
 
       // Build messages with history
       const messages = [];
-      
+
       // Add context
       messages.push({
         role: 'system',
         content: `Context: User "${userProfile?.name || 'User'}" has pain point: "${userPain?.description || 'unknown'}"`
       });
-      
+
       // Add conversation history
       const recentHistory = conversationHistory.slice(-12);
       for (const msg of recentHistory) {
@@ -100,7 +100,7 @@ export class IdeaGeneratorAgent extends BaseAgent {
           messages.push({ role: msg.role, content: msg.content });
         }
       }
-      
+
       // Add current message if not in history
       const lastMessage = recentHistory[recentHistory.length - 1];
       if (!lastMessage || lastMessage.role !== 'user' || lastMessage.content !== userMessage) {
@@ -115,7 +115,7 @@ export class IdeaGeneratorAgent extends BaseAgent {
         /fourth|4th|number 4|#4|four\b/i,
         /fifth|5th|number 5|#5|five\b/i
       ];
-      
+
       const lowerMessage = userMessage.toLowerCase();
       for (let i = 0; i < selectionPatterns.length; i++) {
         if (selectionPatterns[i].test(lowerMessage) || lowerMessage.includes(`${i + 1}`)) {

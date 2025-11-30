@@ -15,7 +15,7 @@ export const agents = {
   builder: new BuilderAgent()
 };
 
-export const getAgent = (agentName) => {
+export const getAgent = agentName => {
   const agent = agents[agentName];
   if (!agent) {
     throw new Error(`Agent not found: ${agentName}`);

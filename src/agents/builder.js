@@ -78,9 +78,15 @@ export class BuilderAgent extends BaseAgent {
 
       // Add context
       let context = 'CONTEXT:\n';
-      if (userProfile?.name) context += `User: ${userProfile.name}\n`;
-      if (userPain?.description) context += `Pain Point: ${userPain.description}\n`;
-      if (selectedIdea?.idea) context += `Selected Idea: ${selectedIdea.idea}\n`;
+      if (userProfile?.name) {
+        context += `User: ${userProfile.name}\n`;
+      }
+      if (userPain?.description) {
+        context += `Pain Point: ${userPain.description}\n`;
+      }
+      if (selectedIdea?.idea) {
+        context += `Selected Idea: ${selectedIdea.idea}\n`;
+      }
       if (validation?.validated) {
         context += `Validation Scores: Feasibility ${validation.feasibility}/10, Market ${validation.marketDemand}/10\n`;
       }

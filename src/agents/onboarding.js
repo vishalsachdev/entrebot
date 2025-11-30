@@ -64,13 +64,13 @@ export class OnboardingAgent extends BaseAgent {
       // Get conversation history
       const historyResult = await conversationQueries.getHistory(sessionId, 20);
       const conversationHistory = historyResult.success ? historyResult.messages : [];
-      
+
       // Get existing memory
       const memory = await this.getAllMemory(sessionId);
 
       // Build conversation messages for AI (include history)
       const messages = [];
-      
+
       // Add conversation history (exclude system messages)
       // Send more history so LLM can see what's already been asked
       const recentHistory = conversationHistory.slice(-12); // Last 6 exchanges
@@ -82,7 +82,7 @@ export class OnboardingAgent extends BaseAgent {
           });
         }
       }
-      
+
       // Add current user message if not already in history
       const lastMessage = recentHistory[recentHistory.length - 1];
       if (!lastMessage || lastMessage.role !== 'user' || lastMessage.content !== userMessage) {
@@ -101,7 +101,7 @@ export class OnboardingAgent extends BaseAgent {
         if (memory.USER_PAIN?.description) {
           memoryContext += `\n- User pain point: ${memory.USER_PAIN.description}`;
         }
-        
+
         // Insert memory context before the last few messages
         if (messages.length > 2) {
           messages.splice(-2, 0, {
@@ -131,7 +131,7 @@ export class OnboardingAgent extends BaseAgent {
   async extractAndStoreInfo(sessionId, userMessage, memory) {
     const message = userMessage.toLowerCase().trim();
     const originalMessage = userMessage.trim();
-    
+
     // Extract name if not already stored
     if (!memory.USER_PROFILE?.name) {
       const namePatterns = [
@@ -142,7 +142,7 @@ export class OnboardingAgent extends BaseAgent {
         /it's (\w+)/i,
         /^(\w+) here/i
       ];
-      
+
       for (const pattern of namePatterns) {
         const match = originalMessage.match(pattern);
         if (match && match[1]) {
@@ -151,15 +151,37 @@ export class OnboardingAgent extends BaseAgent {
           return;
         }
       }
-      
+
       // If short response (1-2 words), likely just a name
       // But filter out common greetings and filler words
-      const greetings = ['hi', 'hello', 'hey', 'yo', 'sup', 'hiya', 'howdy', 'greetings', 
-                         'yes', 'no', 'yeah', 'yep', 'nope', 'ok', 'okay', 'sure', 'thanks',
-                         'good', 'great', 'fine', 'cool', 'nice', 'awesome'];
+      const greetings = [
+        'hi',
+        'hello',
+        'hey',
+        'yo',
+        'sup',
+        'hiya',
+        'howdy',
+        'greetings',
+        'yes',
+        'no',
+        'yeah',
+        'yep',
+        'nope',
+        'ok',
+        'okay',
+        'sure',
+        'thanks',
+        'good',
+        'great',
+        'fine',
+        'cool',
+        'nice',
+        'awesome'
+      ];
       const words = originalMessage.split(/\s+/);
       const firstWord = words[0].toLowerCase();
-      
+
       if (words.length <= 2 && originalMessage.length > 1 && originalMessage.length < 30) {
         if (!greetings.includes(firstWord)) {
           const name = words[0].charAt(0).toUpperCase() + words[0].slice(1).toLowerCase();
@@ -168,13 +190,13 @@ export class OnboardingAgent extends BaseAgent {
         }
       }
     }
-    
+
     // Enhanced pain point extraction with depth tracking
     // We now track multiple dimensions of the pain point as the conversation progresses
     if (memory.USER_PROFILE?.name) {
       const existingPain = memory.USER_PAIN || {};
       const words = message.split(/\s+/);
-      
+
       // Extract frequency if mentioned
       const frequencyPatterns = [
         { pattern: /every\s*day|daily|all the time|constantly/i, value: 'daily' },
@@ -182,7 +204,7 @@ export class OnboardingAgent extends BaseAgent {
         { pattern: /every\s*month|monthly|once a month/i, value: 'monthly' },
         { pattern: /occasionally|sometimes|once in a while|rarely/i, value: 'occasionally' }
       ];
-      
+
       console.log('[extractAndStoreInfo] Checking frequency in message:', message);
       for (const { pattern, value } of frequencyPatterns) {
         if (pattern.test(message)) {
@@ -191,45 +213,51 @@ export class OnboardingAgent extends BaseAgent {
           break;
         }
       }
-      
+
       // Extract severity if mentioned (scale of 1-10)
-      const severityMatch = message.match(/(\d+)\s*(?:out of|\/)\s*10/i) || 
-                           message.match(/(?:like a|about a|maybe)\s*(\d+)/i);
+      const severityMatch =
+        message.match(/(\d+)\s*(?:out of|\/)\s*10/i) ||
+        message.match(/(?:like a|about a|maybe)\s*(\d+)/i);
       if (severityMatch) {
         const severity = parseInt(severityMatch[1]);
         if (severity >= 1 && severity <= 10) {
           existingPain.severity = severity;
         }
       }
-      
+
       // Track if user mentions others having the problem
       if (/friends?|colleagues?|coworkers?|family|everyone|people|others?/i.test(message)) {
         existingPain.affectsOthers = true;
       }
-      
+
       // Track willingness to pay signals
       if (/paid|pay|spend|bought|purchase|subscribe/i.test(message)) {
         existingPain.willingnessSignal = true;
       }
-      
+
       // Track current solution (what they do now to deal with it)
       // This is typically a response to "what do you do now?" or similar
-      if (/nothing|ignore|forget|don't|spreadsheet|calendar|reminder|app|manually|try to/i.test(message) && 
-          existingPain.description && !existingPain.currentSolution) {
+      if (
+        /nothing|ignore|forget|don't|spreadsheet|calendar|reminder|app|manually|try to/i.test(
+          message
+        ) &&
+        existingPain.description &&
+        !existingPain.currentSolution
+      ) {
         existingPain.currentSolution = originalMessage;
       }
-      
+
       // Track if user explicitly says they're ready for ideas
       if (/ready|show me|give me ideas|what ideas|generate/i.test(message)) {
         existingPain.readyForIdeas = true;
       }
-      
+
       // Store initial pain description if not already stored and response is substantial
       if (!existingPain.description && words.length >= 5) {
         existingPain.description = originalMessage;
         existingPain.category = 'unknown'; // Will be refined by the agent
       }
-      
+
       // Update pain memory if we have any data
       if (Object.keys(existingPain).length > 0) {
         await this.setMemory(sessionId, 'USER_PAIN', existingPain);
@@ -263,16 +291,28 @@ export class OnboardingAgent extends BaseAgent {
     // Count depth indicators - need at least 2 for completion
     // This ensures we've had meaningful follow-up exchanges
     let depthScore = 0;
-    if (userPain.frequency && userPain.frequency !== 'unknown') depthScore++;
-    if (userPain.severity) depthScore++;
-    if (userPain.currentSolution) depthScore++;  // What they do now
-    if (userPain.willingnessSignal) depthScore++;
+    if (userPain.frequency && userPain.frequency !== 'unknown') {
+      depthScore++;
+    }
+    if (userPain.severity) {
+      depthScore++;
+    }
+    if (userPain.currentSolution) {
+      depthScore++;
+    } // What they do now
+    if (userPain.willingnessSignal) {
+      depthScore++;
+    }
     // affectsOthers alone shouldn't count - it's often inferred from keywords
-    if (userPain.affectsOthers && depthScore > 0) depthScore++;
-    
+    if (userPain.affectsOthers && depthScore > 0) {
+      depthScore++;
+    }
+
     // Also check if we have explicit confirmation the user is ready
-    if (userPain.readyForIdeas) depthScore += 2;
-    
+    if (userPain.readyForIdeas) {
+      depthScore += 2;
+    }
+
     const isComplete = depthScore >= 2;
     console.log('[isComplete] depthScore:', depthScore, '- returning', isComplete);
     return isComplete;
@@ -283,15 +323,27 @@ export class OnboardingAgent extends BaseAgent {
    */
   async getPainPointDepth(sessionId) {
     const userPain = await this.getMemory(sessionId, 'USER_PAIN');
-    if (!userPain) return 0;
+    if (!userPain) {
+      return 0;
+    }
 
     let score = 0;
-    if (userPain.description) score += 1;
-    if (userPain.frequency && userPain.frequency !== 'unknown') score += 1;
-    if (userPain.severity) score += 1;
-    if (userPain.affectsOthers) score += 1;
-    if (userPain.willingnessSignal) score += 1;
-    
+    if (userPain.description) {
+      score += 1;
+    }
+    if (userPain.frequency && userPain.frequency !== 'unknown') {
+      score += 1;
+    }
+    if (userPain.severity) {
+      score += 1;
+    }
+    if (userPain.affectsOthers) {
+      score += 1;
+    }
+    if (userPain.willingnessSignal) {
+      score += 1;
+    }
+
     return score; // Max score of 5
   }
 }

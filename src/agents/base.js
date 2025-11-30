@@ -18,11 +18,7 @@ export class BaseAgent {
    */
   async send(messages, options = {}) {
     try {
-      const result = await sendMessage(
-        messages,
-        this.systemPrompt,
-        options
-      );
+      const result = await sendMessage(messages, this.systemPrompt, options);
 
       if (!result.success) {
         throw new Error(result.error);
@@ -41,12 +37,7 @@ export class BaseAgent {
    */
   async stream(messages, onChunk, options = {}) {
     try {
-      const result = await streamMessage(
-        messages,
-        this.systemPrompt,
-        onChunk,
-        options
-      );
+      const result = await streamMessage(messages, this.systemPrompt, onChunk, options);
 
       if (!result.success) {
         throw new Error(result.error);

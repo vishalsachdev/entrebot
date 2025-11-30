@@ -50,7 +50,6 @@ Provide concrete next steps:
 WHEN USER WANTS A DIFFERENT IDEA:
 Say: "No problem! Let's go back and explore other ideas."`;
 
-
 export class ValidatorAgent extends BaseAgent {
   constructor() {
     super('Validator', SYSTEM_PROMPT);
@@ -103,20 +102,20 @@ export class ValidatorAgent extends BaseAgent {
       // Get conversation history
       const historyResult = await conversationQueries.getHistory(sessionId, 20);
       const conversationHistory = historyResult.success ? historyResult.messages : [];
-      
+
       // Get context from memory
       const selectedIdea = await this.getMemory(sessionId, 'SelectedIdea');
       const userPain = await this.getMemory(sessionId, 'USER_PAIN');
 
       // Build messages with history
       const messages = [];
-      
+
       // Add context
       messages.push({
         role: 'system',
         content: `Context: User's idea: "${selectedIdea?.idea || 'unknown'}". Pain point: "${userPain?.description || 'unknown'}"`
       });
-      
+
       // Add conversation history
       const recentHistory = conversationHistory.slice(-12);
       for (const msg of recentHistory) {
@@ -124,7 +123,7 @@ export class ValidatorAgent extends BaseAgent {
           messages.push({ role: msg.role, content: msg.content });
         }
       }
-      
+
       // Add current message if not in history
       const lastMessage = recentHistory[recentHistory.length - 1];
       if (!lastMessage || lastMessage.role !== 'user' || lastMessage.content !== userMessage) {

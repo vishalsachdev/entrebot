@@ -1,6 +1,6 @@
 /**
  * Agent Orchestrator
- * 
+ *
  * Central routing and state management for multi-agent system.
  * Handles:
  * - Phase-aware agent routing
@@ -22,50 +22,50 @@ export const PHASES = {
     description: 'Understand yourself and identify problems worth solving',
     agents: ['onboarding'],
     milestones: ['name_collected', 'pain_articulated', 'pain_validated'],
-    nextPhase: 'ideation',
+    nextPhase: 'ideation'
   },
   ideation: {
     name: 'Ideation',
     description: 'Generate and explore business ideas',
     agents: ['ideaGenerator'],
     milestones: ['ideas_generated', 'idea_selected'],
-    nextPhase: 'validation',
+    nextPhase: 'validation'
   },
   validation: {
     name: 'Validation',
     description: 'Validate your idea with market research',
     agents: ['validator'],
     milestones: ['validation_complete', 'decision_made'],
-    nextPhase: 'strategy',
+    nextPhase: 'strategy'
   },
   strategy: {
     name: 'Strategy',
     description: 'Create your product strategy and PRD',
     agents: ['builder'],
     milestones: ['prd_created', 'mvp_scoped'],
-    nextPhase: 'building',
+    nextPhase: 'building'
   },
   building: {
     name: 'Building',
     description: 'Build your MVP with AI tools',
     agents: ['builder'],
     milestones: ['prompts_generated', 'mvp_started', 'mvp_complete'],
-    nextPhase: 'launch',
+    nextPhase: 'launch'
   },
   launch: {
     name: 'Launch',
     description: 'Prepare and execute your launch',
     agents: ['builder'], // Will be replaced with GTM agent
     milestones: ['launch_plan_created', 'launched'],
-    nextPhase: 'growth',
+    nextPhase: 'growth'
   },
   growth: {
     name: 'Growth',
     description: 'Grow and iterate on your product',
     agents: ['builder'], // Will be replaced with Growth agent
     milestones: ['first_user', 'first_feedback', 'iteration_complete'],
-    nextPhase: null,
-  },
+    nextPhase: null
+  }
 };
 
 /**
@@ -73,28 +73,28 @@ export const PHASES = {
  */
 const TRANSITION_TRIGGERS = {
   discovery_to_ideation: {
-    memoryConditions: (memory) => 
-      memory.USER_PROFILE?.name && 
+    memoryConditions: memory =>
+      memory.USER_PROFILE?.name &&
       memory.USER_PAIN?.description &&
       (memory.USER_PAIN?.frequency || memory.USER_PAIN?.severity),
-    messagePatterns: ['generate ideas', 'show me ideas', 'what ideas', 'ready for ideas'],
+    messagePatterns: ['generate ideas', 'show me ideas', 'what ideas', 'ready for ideas']
   },
   ideation_to_validation: {
-    memoryConditions: (memory) => memory.SelectedIdea?.idea,
-    messagePatterns: ['validate', 'check this', 'is this viable', 'market research'],
+    memoryConditions: memory => memory.SelectedIdea?.idea,
+    messagePatterns: ['validate', 'check this', 'is this viable', 'market research']
   },
   validation_to_strategy: {
-    memoryConditions: (memory) => memory.Validator?.validated,
-    messagePatterns: ['proceed', 'next step', 'let\'s build', 'prd', 'requirements', 'help me'],
+    memoryConditions: memory => memory.Validator?.validated,
+    messagePatterns: ['proceed', 'next step', "let's build", 'prd', 'requirements', 'help me']
   },
   strategy_to_building: {
-    memoryConditions: (memory) => memory.PRD?.created,
-    messagePatterns: ['build', 'start coding', 'create mvp', 'bolt', 'cursor', 'v0'],
+    memoryConditions: memory => memory.PRD?.created,
+    messagePatterns: ['build', 'start coding', 'create mvp', 'bolt', 'cursor', 'v0']
   },
   building_to_launch: {
-    memoryConditions: (memory) => memory.MVP?.complete,
-    messagePatterns: ['launch', 'go live', 'release', 'ship it'],
-  },
+    memoryConditions: memory => memory.MVP?.complete,
+    messagePatterns: ['launch', 'go live', 'release', 'ship it']
+  }
 };
 
 /**
@@ -111,18 +111,18 @@ export class Orchestrator {
   async getState(sessionId) {
     const memory = await memoryQueries.getAll(sessionId);
     const allMemory = memory.success ? memory.memory : {};
-    
+
     // Get or initialize journey state
     let journeyState = allMemory.JOURNEY_STATE || {
       currentPhase: 'discovery',
       milestones: [],
       startedAt: new Date().toISOString(),
-      lastActivity: new Date().toISOString(),
+      lastActivity: new Date().toISOString()
     };
 
     return {
       ...journeyState,
-      memory: allMemory,
+      memory: allMemory
     };
   }
 
@@ -134,13 +134,13 @@ export class Orchestrator {
     const newState = {
       ...currentState,
       ...updates,
-      lastActivity: new Date().toISOString(),
+      lastActivity: new Date().toISOString()
     };
-    
+
     // Remove memory from state before saving (it's fetched separately)
     const { memory, ...stateToSave } = newState;
     await memoryQueries.set(sessionId, 'JOURNEY_STATE', stateToSave);
-    
+
     return newState;
   }
 
@@ -172,7 +172,7 @@ export class Orchestrator {
       validation: ['validate', 'market research', 'check viability'],
       strategy: ['prd', 'requirements', 'product plan', 'strategy'],
       building: ['build', 'mvp', 'code', 'create app'],
-      launch: ['launch', 'go live', 'release'],
+      launch: ['launch', 'go live', 'release']
     };
 
     for (const [phase, keywords] of Object.entries(phaseKeywords)) {
@@ -191,11 +191,11 @@ export class Orchestrator {
     // Check automatic transitions based on memory state
     const transitionKey = `${currentPhase}_to_${PHASES[currentPhase]?.nextPhase}`;
     const trigger = TRANSITION_TRIGGERS[transitionKey];
-    
+
     if (trigger) {
       const memoryReady = trigger.memoryConditions(memory);
       const messageMatch = trigger.messagePatterns.some(p => lowerMessage.includes(p));
-      
+
       if (memoryReady && messageMatch) {
         const nextPhase = PHASES[currentPhase].nextPhase;
         logger.info(`Auto-transitioning from ${currentPhase} to ${nextPhase}`);
@@ -217,7 +217,7 @@ export class Orchestrator {
       strategy: () => memory.Validator?.validated,
       building: () => memory.Validator?.validated, // Can start building after validation
       launch: () => memory.MVP?.started,
-      growth: () => memory.Launch?.complete,
+      growth: () => memory.Launch?.complete
     };
 
     return prerequisites[targetPhase]?.() ?? false;
@@ -236,7 +236,7 @@ export class Orchestrator {
     // For now, use the first agent in the phase
     // Future: Use LLM to select best agent based on message intent
     const agentName = phaseConfig.agents[0];
-    
+
     try {
       return getAgent(agentName);
     } catch (error) {
@@ -251,10 +251,10 @@ export class Orchestrator {
   async route(sessionId, message) {
     const state = await this.getState(sessionId);
     const currentPhase = state.currentPhase || 'discovery';
-    
+
     // Determine if we should transition phases
     const newPhase = await this.determinePhase(sessionId, message, currentPhase);
-    
+
     // Update phase if changed
     if (newPhase !== currentPhase) {
       await this.updateState(sessionId, { currentPhase: newPhase });
@@ -263,12 +263,12 @@ export class Orchestrator {
 
     // Select appropriate agent
     const agent = await this.selectAgent(sessionId, message, newPhase);
-    
+
     return {
       agent,
       phase: newPhase,
       phaseChanged: newPhase !== currentPhase,
-      state: await this.getState(sessionId),
+      state: await this.getState(sessionId)
     };
   }
 
@@ -279,7 +279,15 @@ export class Orchestrator {
     const state = await this.getState(sessionId);
     const memory = state.memory;
 
-    const phaseOrder = ['discovery', 'ideation', 'validation', 'strategy', 'building', 'launch', 'growth'];
+    const phaseOrder = [
+      'discovery',
+      'ideation',
+      'validation',
+      'strategy',
+      'building',
+      'launch',
+      'growth'
+    ];
     const currentIndex = phaseOrder.indexOf(state.currentPhase);
 
     return {
@@ -290,17 +298,17 @@ export class Orchestrator {
         percentage: Math.round((currentIndex / (phaseOrder.length - 1)) * 100),
         completedPhases: phaseOrder.slice(0, currentIndex),
         currentPhase: state.currentPhase,
-        remainingPhases: phaseOrder.slice(currentIndex + 1),
+        remainingPhases: phaseOrder.slice(currentIndex + 1)
       },
       milestones: state.milestones,
       context: {
         userName: memory.USER_PROFILE?.name,
         painPoint: memory.USER_PAIN?.description,
         selectedIdea: memory.SelectedIdea?.idea,
-        validated: memory.Validator?.validated,
+        validated: memory.Validator?.validated
       },
       startedAt: state.startedAt,
-      lastActivity: state.lastActivity,
+      lastActivity: state.lastActivity
     };
   }
 
@@ -315,14 +323,14 @@ export class Orchestrator {
       phase: state.currentPhase,
       user: {
         name: memory.USER_PROFILE?.name,
-        background: memory.USER_PROFILE?.background,
+        background: memory.USER_PROFILE?.background
       },
       painPoint: memory.USER_PAIN,
       ideas: memory.GeneratedIdeas,
       selectedIdea: memory.SelectedIdea,
       validation: memory.Validator,
       prd: memory.PRD,
-      milestones: state.milestones,
+      milestones: state.milestones
     };
   }
 }

@@ -29,7 +29,9 @@ export const userQueries = {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { success: true, user: data };
     } catch (error) {
       logger.error('Error creating user:', error);
@@ -43,13 +45,11 @@ export const userQueries = {
   async getByEmail(email) {
     try {
       const supabase = getSupabase();
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single();
+      const { data, error } = await supabase.from('users').select('*').eq('email', email).single();
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
       return { success: true, user: data };
     } catch (error) {
       logger.error('Error fetching user:', error);
@@ -73,7 +73,9 @@ export const userQueries = {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { success: true, user: data };
     } catch (error) {
       logger.error('Error updating user:', error);
@@ -104,7 +106,9 @@ export const sessionQueries = {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { success: true, session: data };
     } catch (error) {
       logger.error('Error creating session:', error);
@@ -124,7 +128,9 @@ export const sessionQueries = {
         .eq('id', sessionId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { success: true, session: data };
     } catch (error) {
       logger.error('Error fetching session:', error);
@@ -157,7 +163,9 @@ export const conversationQueries = {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { success: true, message: data };
     } catch (error) {
       logger.error('Error storing conversation:', error);
@@ -178,7 +186,9 @@ export const conversationQueries = {
         .order('created_at', { ascending: true })
         .limit(limit);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { success: true, messages: data || [] };
     } catch (error) {
       logger.error('Error fetching conversation history:', error);
@@ -206,15 +216,17 @@ export const memoryQueries = {
             value: typeof value === 'object' ? JSON.stringify(value) : value,
             updated_at: new Date().toISOString()
           },
-          { 
+          {
             onConflict: 'session_id,key',
-            ignoreDuplicates: false 
+            ignoreDuplicates: false
           }
         )
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { success: true, memory: data };
     } catch (error) {
       logger.error('Error storing memory:', error);
@@ -235,9 +247,13 @@ export const memoryQueries = {
         .eq('key', key)
         .single();
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
 
-      if (!data) return { success: true, value: null };
+      if (!data) {
+        return { success: true, value: null };
+      }
 
       // Try to parse JSON, otherwise return raw value
       try {
@@ -262,7 +278,9 @@ export const memoryQueries = {
         .select('key, value')
         .eq('session_id', sessionId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       const memory = {};
       (data || []).forEach(item => {
