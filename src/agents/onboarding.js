@@ -6,31 +6,50 @@
 import { BaseAgent } from './base.js';
 import { conversationQueries } from '../database/queries.js';
 
-const SYSTEM_PROMPT = `You are VentureBot, a friendly onboarding agent who helps users discover business ideas by focusing on real pain points.
+const SYSTEM_PROMPT = `You are VentureBot, a warm and encouraging coach who helps aspiring entrepreneurs discover business opportunities hidden in everyday frustrations.
 
-CRITICAL: Ask ONE question at a time and wait for the user's response. Do not overwhelm them with multiple questions or long explanations.
+Your personality:
+- Friendly and conversational, like chatting with a supportive mentor
+- Curious and genuinely interested in their experiences  
+- Patient but efficient - don't repeat questions they've already answered
+- Keep responses concise (2-3 sentences max)
 
-Conversation Flow:
-1. Greet warmly and ask for their first name
-2. Wait for response, then ask about a frustration or pain point
-3. Wait for response, then ask follow-up questions ONE AT A TIME
-4. Only when you have both name and pain point, confirm and offer to generate ideas
+CRITICAL RULES:
+- Ask only ONE question per message
+- Never use markdown formatting (no asterisks, no bold, no bullets)
+- Write in plain, natural language
+- NEVER repeat a question the user has already answered
+- NEVER ask about workarounds more than once
+- Move forward once you have enough information
 
-Guidelines:
-- Keep responses short and conversational
-- Ask ONE question per message
-- Wait for user responses before continuing
-- Use **bold** for important questions
-- Be encouraging and supportive
-- Store information in memory as you collect it
-- NEVER repeat the welcome message unless starting a completely new session
+STREAMLINED CONVERSATION FLOW:
 
-Memory to store:
-- USER_PROFILE: {name: "user's name"}
-- USER_PAIN: {description: "pain description", frequency: "how often", severity: "1-10 scale"}
-- USER_PREFERENCES: {interests: "optional interests"}
+1. GREETING (already shown): "Hey there! I'm VentureBot..."
 
-Start with: "Hi! I'm VentureBot. I help turn frustrations into business ideas. **What's your first name?**"`;
+2. AFTER NAME: Ask about a frustration.
+   "Nice to meet you, [Name]! What's something that frustrates you in your daily life?"
+
+3. AFTER FRUSTRATION MENTIONED: Ask for frequency OR severity (pick one).
+   "How often does this happen to you?"
+
+4. AFTER FREQUENCY/SEVERITY: Ask ONE workaround question, then MOVE ON.
+   "What do you do now to deal with this?"
+
+5. AFTER ANY WORKAROUND ANSWER (even brief ones like "go to a bar"): 
+   DO NOT ask about workarounds again. Move to confirmation.
+   "Got it! Let me make sure I understand: You're frustrated by [problem], it happens [frequency], and currently you [workaround]. Ready to explore some business ideas around this?"
+
+6. AFTER CONFIRMATION: Transition immediately.
+   "Great! Let me generate some ideas for you now."
+
+IMPORTANT - AVOID LOOPS:
+- If user gives ANY answer to a workaround question, accept it and move on
+- Short answers are fine ("go to a bar", "nothing", "I just deal with it")
+- Don't ask for "other" workarounds or "more" strategies
+- 3-4 exchanges after the pain point is mentioned is enough
+- When in doubt, summarize what you know and move to ideas
+
+Remember: Better to move forward with a good-enough understanding than to frustrate the user with repetitive questions.`;
 
 export class OnboardingAgent extends BaseAgent {
   constructor() {
@@ -43,7 +62,7 @@ export class OnboardingAgent extends BaseAgent {
   async chat(sessionId, userMessage, onChunk = null) {
     try {
       // Get conversation history
-      const historyResult = await conversationQueries.getHistory(sessionId, 10);
+      const historyResult = await conversationQueries.getHistory(sessionId, 20);
       const conversationHistory = historyResult.success ? historyResult.messages : [];
       
       // Get existing memory
@@ -52,8 +71,9 @@ export class OnboardingAgent extends BaseAgent {
       // Build conversation messages for AI (include history)
       const messages = [];
       
-      // Add conversation history (exclude system messages and limit to last few exchanges)
-      const recentHistory = conversationHistory.slice(-6); // Last 3 exchanges
+      // Add conversation history (exclude system messages)
+      // Send more history so LLM can see what's already been asked
+      const recentHistory = conversationHistory.slice(-12); // Last 6 exchanges
       for (const msg of recentHistory) {
         if (msg.role === 'user' || msg.role === 'assistant') {
           messages.push({
@@ -110,57 +130,150 @@ export class OnboardingAgent extends BaseAgent {
    */
   async extractAndStoreInfo(sessionId, userMessage, memory) {
     const message = userMessage.toLowerCase().trim();
+    const originalMessage = userMessage.trim();
     
     // Extract name if not already stored
     if (!memory.USER_PROFILE?.name) {
-      // Simple name extraction - look for patterns like "my name is X" or just single words that could be names
       const namePatterns = [
         /my name is (\w+)/i,
         /i'm (\w+)/i,
         /i am (\w+)/i,
-        /call me (\w+)/i
+        /call me (\w+)/i,
+        /it's (\w+)/i,
+        /^(\w+) here/i
       ];
       
       for (const pattern of namePatterns) {
-        const match = message.match(pattern);
+        const match = originalMessage.match(pattern);
         if (match && match[1]) {
-          await this.setMemory(sessionId, 'USER_PROFILE', { name: match[1] });
+          const name = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
+          await this.setMemory(sessionId, 'USER_PROFILE', { name });
+          return;
+        }
+      }
+      
+      // If short response (1-2 words), likely just a name
+      // But filter out common greetings and filler words
+      const greetings = ['hi', 'hello', 'hey', 'yo', 'sup', 'hiya', 'howdy', 'greetings', 
+                         'yes', 'no', 'yeah', 'yep', 'nope', 'ok', 'okay', 'sure', 'thanks',
+                         'good', 'great', 'fine', 'cool', 'nice', 'awesome'];
+      const words = originalMessage.split(/\s+/);
+      const firstWord = words[0].toLowerCase();
+      
+      if (words.length <= 2 && originalMessage.length > 1 && originalMessage.length < 30) {
+        if (!greetings.includes(firstWord)) {
+          const name = words[0].charAt(0).toUpperCase() + words[0].slice(1).toLowerCase();
+          await this.setMemory(sessionId, 'USER_PROFILE', { name });
+          return;
+        }
+      }
+    }
+    
+    // Enhanced pain point extraction with depth tracking
+    // We now track multiple dimensions of the pain point as the conversation progresses
+    if (memory.USER_PROFILE?.name) {
+      const existingPain = memory.USER_PAIN || {};
+      const words = message.split(/\s+/);
+      
+      // Extract frequency if mentioned
+      const frequencyPatterns = [
+        { pattern: /every\s*day|daily|all the time|constantly/i, value: 'daily' },
+        { pattern: /every\s*week|weekly|few times a week/i, value: 'weekly' },
+        { pattern: /every\s*month|monthly|once a month/i, value: 'monthly' },
+        { pattern: /occasionally|sometimes|once in a while|rarely/i, value: 'occasionally' }
+      ];
+      
+      console.log('[extractAndStoreInfo] Checking frequency in message:', message);
+      for (const { pattern, value } of frequencyPatterns) {
+        if (pattern.test(message)) {
+          console.log('[extractAndStoreInfo] Found frequency:', value);
+          existingPain.frequency = value;
           break;
         }
       }
       
-      // If no pattern matched, check if it's a single word (likely a name)
-      if (!memory.USER_PROFILE?.name && message.split(' ').length === 1 && message.length > 1) {
-        await this.setMemory(sessionId, 'USER_PROFILE', { name: userMessage.trim() });
+      // Extract severity if mentioned (scale of 1-10)
+      const severityMatch = message.match(/(\d+)\s*(?:out of|\/)\s*10/i) || 
+                           message.match(/(?:like a|about a|maybe)\s*(\d+)/i);
+      if (severityMatch) {
+        const severity = parseInt(severityMatch[1]);
+        if (severity >= 1 && severity <= 10) {
+          existingPain.severity = severity;
+        }
       }
-    }
-    
-    // Extract pain points if not already stored
-    if (!memory.USER_PAIN?.description && memory.USER_PROFILE?.name) {
-      // Look for pain indicators after we have the name
-      const painIndicators = [
-        'frustrated', 'annoying', 'problem', 'issue', 'struggle', 
-        'difficult', 'hard', 'hate', 'don\'t like', 'wish', 'pain'
-      ];
       
-      if (painIndicators.some(indicator => message.includes(indicator))) {
-        await this.setMemory(sessionId, 'USER_PAIN', { 
-          description: userMessage.trim(),
-          frequency: 'unknown',
-          severity: 5
-        });
+      // Track if user mentions others having the problem
+      if (/friends?|colleagues?|coworkers?|family|everyone|people|others?/i.test(message)) {
+        existingPain.affectsOthers = true;
+      }
+      
+      // Track willingness to pay signals
+      if (/paid|pay|spend|bought|purchase|subscribe/i.test(message)) {
+        existingPain.willingnessSignal = true;
+      }
+      
+      // Store initial pain description if not already stored and response is substantial
+      if (!existingPain.description && words.length >= 5) {
+        existingPain.description = originalMessage;
+        existingPain.category = 'unknown'; // Will be refined by the agent
+      }
+      
+      // Update pain memory if we have any data
+      if (Object.keys(existingPain).length > 0) {
+        await this.setMemory(sessionId, 'USER_PAIN', existingPain);
       }
     }
   }
 
   /**
    * Check if onboarding is complete
+   * Need name, pain point, AND at least one follow-up answered
    */
   async isComplete(sessionId) {
     const userProfile = await this.getMemory(sessionId, 'USER_PROFILE');
     const userPain = await this.getMemory(sessionId, 'USER_PAIN');
 
-    return !!(userProfile?.name && userPain?.description);
+    console.log('[isComplete] userProfile:', userProfile);
+    console.log('[isComplete] userPain:', userPain);
+
+    // Need name and pain description
+    if (!userProfile?.name || !userPain?.description) {
+      console.log('[isComplete] Missing name or description, returning false');
+      return false;
+    }
+
+    // Description should be at least 10 characters
+    if (userPain.description.length < 10) {
+      console.log('[isComplete] Description too short, returning false');
+      return false;
+    }
+
+    // Need at least one depth indicator (frequency, severity, etc.)
+    // This ensures we've had at least one follow-up exchange
+    const hasDepth = userPain.frequency || 
+                     userPain.severity || 
+                     userPain.affectsOthers || 
+                     userPain.willingnessSignal;
+    
+    console.log('[isComplete] hasDepth:', hasDepth, '- returning', !!hasDepth);
+    return !!hasDepth;
+  }
+
+  /**
+   * Get pain point depth score for coaching quality metrics
+   */
+  async getPainPointDepth(sessionId) {
+    const userPain = await this.getMemory(sessionId, 'USER_PAIN');
+    if (!userPain) return 0;
+
+    let score = 0;
+    if (userPain.description) score += 1;
+    if (userPain.frequency && userPain.frequency !== 'unknown') score += 1;
+    if (userPain.severity) score += 1;
+    if (userPain.affectsOthers) score += 1;
+    if (userPain.willingnessSignal) score += 1;
+    
+    return score; // Max score of 5
   }
 }
 

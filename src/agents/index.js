@@ -6,11 +6,13 @@
 import { OnboardingAgent } from './onboarding.js';
 import { IdeaGeneratorAgent } from './idea-generator.js';
 import { ValidatorAgent } from './validator.js';
+import { BuilderAgent } from './builder.js';
 
 export const agents = {
   onboarding: new OnboardingAgent(),
   ideaGenerator: new IdeaGeneratorAgent(),
-  validator: new ValidatorAgent()
+  validator: new ValidatorAgent(),
+  builder: new BuilderAgent()
 };
 
 export const getAgent = (agentName) => {

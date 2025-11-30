@@ -198,26 +198,95 @@ curl -X POST http://localhost:3000/api/chat/stream \
   }'
 ```
 
-## Development Notes
+## Frontend Stack
 
-### Code Style
-- Async/await for all async operations
-- Proper error handling with try-catch
-- Input validation with Joi schemas
-- Parameterized database queries
-- Descriptive variable and function names
+The frontend is a separate React application located in `frontend/`:
 
-### Security
+```
+React 18 + TypeScript + Vite
+├── UI: Tailwind CSS + Headless UI
+├── State: React Context + React Query
+├── Routing: React Router v6
+├── Animations: Framer Motion
+└── Icons: Lucide React
+```
+
+**Frontend Development:**
+```bash
+cd frontend
+npm install
+npm run dev  # Starts on http://localhost:5173
+```
+
+See `frontend/README.md` for detailed frontend documentation.
+
+## Contributing
+
+### Code Style & Naming Conventions
+- **Language**: Node.js (ES modules), Node >= 18
+- **Indentation**: 2 spaces; use semicolons; single quotes
+- **Filenames**: kebab-case (`idea-generator.js`); directories lower-case
+- **Identifiers**: camelCase for vars/functions; PascalCase for classes
+- **Imports**: group built-ins → third-party → local
+- **Comments**: add concise JSDoc for exported functions and classes
+- **Async/await**: for all async operations
+- **Error handling**: proper try-catch blocks
+- **Validation**: input validation with Joi schemas
+- **Database**: parameterized queries only
+- **Naming**: descriptive variable and function names
+
+### Testing Guidelines
+- **Framework**: Jest via `ts-jest` (in `tests/`)
+- **Structure**: `tests/unit`, `tests/integration`, `tests/e2e`
+- **File naming**: `*.test.ts`
+- **Coverage target**: 80% global (`npm run test:coverage`)
+- **Fixtures**: add under `tests/fixtures/` when helpful
+- **Network calls**: avoid in unit tests
+- **Commands**: `cd tests && npm install && npm test`
+
+### Commit & Pull Request Guidelines
+- Use Conventional Commits: `feat:`, `fix:`, `docs:`, `chore:`, etc.
+- PRs must include: clear description, linked issue, test plan (commands or curl), and any config/doc updates
+- Keep diffs focused; update or add tests for behavior changes
+
+### Security Best Practices
+- Copy `.env.example` → `.env`; never commit secrets
+- Required envs: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `OPENAI_API_KEY`
+- Enable Supabase RLS in production (see notes in `schema.sql`)
+- Don't log sensitive data; use `logger` with appropriate levels
 - Environment variables validated at startup
 - Rate limiting on API endpoints
 - Helmet for security headers
 - CORS enabled
-- No secrets in code
 
-### Testing
-- Run `npm test` (tests not yet implemented)
-- Manual testing with curl or Postman
-- Check logs in `logs/` directory
+### Adding New Agents
+- Add a new agent under `src/agents/<name>.js` extending `BaseAgent`
+- Register it in `src/agents/index.js` and reference by key (e.g., `onboarding`, `ideaGenerator`)
+- Persist context via `memoryQueries` with uppercase keys (e.g., `USER_PROFILE`)
+- For new endpoints, create a router in `src/routes/`, validate with `Joi` schemas, wrap with `asyncHandler`, and mount in `routes/index.js`
+
+## Deployment
+
+### Frontend Deployment
+```bash
+cd frontend
+npm run build
+# Upload dist/ folder to:
+# - Vercel
+# - Netlify
+# - AWS S3 + CloudFront
+# - Any static hosting
+```
+
+### Backend Deployment
+```bash
+# Deploy to:
+# - Heroku
+# - Railway
+# - AWS EC2/ECS
+# - DigitalOcean
+# - Render
+```
 
 ## Future Enhancements
 

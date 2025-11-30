@@ -7,13 +7,14 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import fs from 'fs';
+import path from 'path';
 import { config } from './config/env.js';
 import { logger } from './config/logger.js';
 import { initializeSupabase } from './database/supabase.js';
 import { initializeOpenAI } from './services/openai.js';
 import routes from './routes/index.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
-import path from 'path';
 
 const app = express();
 
@@ -28,7 +29,12 @@ app.use(express.urlencoded({ extended: true }));
 /**
  * Static frontend (public/)
  */
-app.use(express.static('public'));
+const publicDir = path.join(process.cwd(), 'public');
+const distDir = path.join(process.cwd(), 'frontend', 'dist');
+const hasBuiltFrontend = fs.existsSync(path.join(distDir, 'index.html'));
+
+// Serve built frontend when available (keeps legacy public/ fallback for MVP UI)
+app.use(express.static(hasBuiltFrontend ? distDir : publicDir));
 
 /**
  * Rate limiting
@@ -46,9 +52,15 @@ app.use('/api/', limiter);
  */
 app.use('/api', routes);
 
-// Root → serve index.html
-app.get('/', (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
+// SPA fallback for frontend routes
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) return next();
+
+  const target = hasBuiltFrontend
+    ? path.join(distDir, 'index.html')
+    : path.join(publicDir, 'index.html');
+
+  res.sendFile(target);
 });
 
 /**
@@ -69,8 +81,6 @@ const startServer = async () => {
     initializeOpenAI();
 
     // Create logs directory
-    const fs = await import('fs');
-    const path = await import('path');
     const logsDir = path.join(process.cwd(), 'logs');
     if (!fs.existsSync(logsDir)) {
       fs.mkdirSync(logsDir, { recursive: true });

@@ -35,18 +35,18 @@ VentureBot is a multi-agent AI coaching platform built on a microservices archit
        ┌──────────────▼──────────────────────────────────────────┐
        │              API Gateway Layer                          │
        │  ┌────────────────────────────────────────────────┐    │
-       │  │  FastAPI Application (Port 8000)               │    │
-       │  │  - Authentication & Authorization              │    │
+       │  │  Express API (Node.js 18, Port 3000)           │    │
+       │  │  - Authentication & Authorization (JWT/Supabase)│    │
        │  │  - Request Routing                             │    │
-       │  │  - Rate Limiting                               │    │
-       │  │  - WebSocket Management                        │    │
+       │  │  - Rate Limiting (express-rate-limit)          │    │
+       │  │  - Server-Sent Events (stream endpoint)        │    │
        │  └────────────────────────────────────────────────┘    │
        └──────────────┬──────────────────────────────────────────┘
                       │
        ┌──────────────▼──────────────────────────────────────────┐
        │           Agent Orchestration Layer                     │
        │  ┌─────────────────────────────────────────────────┐   │
-       │  │  Manager Agent (ADK Framework)                  │   │
+       │  │  Manager Agent (custom orchestration)           │   │
        │  │  - Route conversations to specialized agents    │   │
        │  │  - Manage agent lifecycle                       │   │
        │  │  - Coordinate multi-agent workflows             │   │
@@ -109,7 +109,7 @@ VentureBot is a multi-agent AI coaching platform built on a microservices archit
 
 **State Management:**
 - React Context for user session
-- WebSocket connection for real-time streaming
+- SSE-friendly streaming hooks (fetch + EventSource polyfill)
 - Local storage for draft messages
 
 **Components:**
@@ -132,24 +132,23 @@ src/
 │       ├── Layout.tsx               # App shell
 │       └── Navigation.tsx           # Sidebar nav
 ├── hooks/
-│   ├── useWebSocket.ts              # WebSocket connection
-│   ├── useStreamingResponse.ts      # Handle streaming
+│   ├── useStreamingResponse.ts      # Handle SSE streaming
 │   └── useAuth.ts                   # Authentication
 ├── services/
 │   ├── api.ts                       # API client
 │   ├── supabase.ts                  # Supabase client
-│   └── websocket.ts                 # WebSocket client
+│   └── streaming.ts                 # SSE helpers (fetch/EventSource)
 └── types/
     ├── message.ts                   # Message types
     ├── agent.ts                     # Agent types
     └── memory.ts                    # Memory schemas
 ```
 
-#### WhatsApp Integration
+#### WhatsApp Integration (planned)
 **Technology:** Twilio WhatsApp Business API
 **Flow:**
 1. User sends message to WhatsApp number
-2. Twilio webhook forwards to FastAPI endpoint
+2. Twilio webhook forwards to Express endpoint
 3. Manager agent processes, routes to specialized agent
 4. Response sent back via Twilio API
 5. Conversation state persisted in Supabase
@@ -165,10 +164,10 @@ src/
 
 ### 2. API Gateway Layer
 
-#### FastAPI Application
-**Technology:** FastAPI + Python 3.11+
+#### Express Application
+**Technology:** Node.js 18 + Express
 **Responsibilities:**
-- HTTP/WebSocket endpoints
+- HTTP REST endpoints + SSE streaming
 - Authentication & session management
 - Request validation and sanitization
 - Rate limiting (per user, per endpoint)
@@ -221,7 +220,7 @@ src/
 │   ├── POST /discord                # Discord bot webhook
 │   └── POST /telegram               # Telegram bot webhook
 └── ws/
-    └── /chat                        # WebSocket for streaming
+    └── /chat/stream                 # SSE for streaming
 ```
 
 **Authentication Strategy:**
@@ -240,7 +239,7 @@ src/
 ### 3. Agent Orchestration Layer
 
 #### Manager Agent
-**Technology:** Google ADK (Agent Development Kit)
+**Technology:** Custom BaseAgent orchestration (Node.js services)
 **Responsibilities:**
 - Route incoming messages to appropriate specialized agent
 - Maintain conversation state and context
@@ -249,8 +248,8 @@ src/
 - Memory management coordination
 
 **Agent Lifecycle:**
-```python
-class ManagerAgent:
+```javascript
+export class ManagerAgent {
     def __init__(self):
         self.agents = {
             "onboarding": OnboardingAgent(),
@@ -262,51 +261,52 @@ class ManagerAgent:
         self.memory = MemoryManager()
         self.router = AgentRouter()
 
-    async def handle(self, user_input: str, context: dict):
+    async handle(userInput, context) {
         # 1. Load user context from memory
-        user_context = await self.memory.load_context(context['user_id'])
+        const userContext = await this.memory.loadContext(context.userId);
 
         # 2. Determine active agent based on journey stage
-        active_agent = self.router.route(user_input, user_context)
+        const activeAgent = this.router.route(userInput, userContext);
 
         # 3. Execute agent
-        response = await active_agent.handle(user_input, user_context)
+        const response = await activeAgent.handle(userInput, userContext);
 
         # 4. Update memory with new context
-        await self.memory.update(response.memory_updates)
+        await this.memory.update(response.memoryUpdates);
 
         # 5. Return response
-        return response
+        return response;
 ```
 
 **Agent Routing Logic:**
-```python
-class AgentRouter:
-    def route(self, user_input: str, context: dict) -> Agent:
+```javascript
+export class AgentRouter {
+    route(userInput, context) {
         # Check explicit agent selection by user
-        if self._is_explicit_selection(user_input):
-            return self._get_agent_from_selection(user_input)
+        if (this.isExplicitSelection(userInput)) {
+            return this.getAgentFromSelection(userInput);
+        }
 
         # Route based on conversation stage
-        stage = context.get('journey_stage', 'onboarding')
+        const stage = context.journey_stage || 'onboarding';
 
         if stage == 'onboarding' and not context.get('USER_PAIN'):
-            return self.agents['onboarding']
+            return this.agents.onboarding;
 
         elif stage == 'ideation' and not context.get('SelectedIdea'):
-            return self.agents['idea_generator']
+            return this.agents.ideaGenerator;
 
         elif stage == 'validation' and context.get('SelectedIdea'):
-            return self.agents['validator']
+            return this.agents.validator;
 
         elif stage == 'product_planning' and context.get('Validator'):
-            return self.agents['product_manager']
+            return this.agents.productManager;
 
         elif stage == 'prompt_engineering' and context.get('PRD'):
-            return self.agents['prompt_engineer']
+            return this.agents.promptEngineer;
 
         # Default to manager for general queries
-        return self.agents['manager']
+        return this.agents.manager;
 ```
 
 #### Specialized Agents
@@ -606,94 +606,66 @@ class MemoryManager:
 
 ### 6. Real-Time Streaming Architecture
 
-#### WebSocket Connection
+#### Server-Sent Events (SSE)
 **Flow:**
-1. Client establishes WebSocket connection to `/ws/chat`
-2. Client sends message with user_id, session_id, content
-3. Server processes message through manager agent
-4. Server streams response chunks via WebSocket
-5. Client accumulates chunks and displays in real-time
+1. Client sends POST to `/api/chat/stream` with `sessionId`, `message`, and optional `agent`.
+2. Express handler sets `Content-Type: text/event-stream` and keeps the HTTP connection open.
+3. Specialized agent streams chunks via callbacks; each chunk is flushed as an SSE `data` event.
+4. When the agent finishes, the server emits a `done` event, stores the transcript, and closes the stream.
 
-**Server-Side Implementation:**
-```python
-from fastapi import WebSocket, WebSocketDisconnect
+**Server-Side Implementation (Express):**
+```javascript
+import express from 'express';
+import { getAgent } from '../agents/index.js';
 
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}
+router.post('/chat/stream', asyncHandler(async (req, res) => {
+  const { sessionId, message, agent: agentName } = req.body;
 
-    async def connect(self, websocket: WebSocket, connection_id: str):
-        await websocket.accept()
-        self.active_connections[connection_id] = websocket
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
 
-    async def disconnect(self, connection_id: str):
-        self.active_connections.pop(connection_id, None)
+  const agent = agentName ? getAgent(agentName) : await autoSelectAgent(sessionId);
+  let fullResponse = '';
 
-    async def send_chunk(self, connection_id: str, chunk: str):
-        if ws := self.active_connections.get(connection_id):
-            await ws.send_json({"type": "chunk", "content": chunk})
+  const onChunk = chunk => {
+    fullResponse += chunk;
+    res.write(`data: ${JSON.stringify({ chunk, agent: agent.name })}\n\n`);
+  };
 
-    async def send_complete(self, connection_id: str):
-        if ws := self.active_connections.get(connection_id):
-            await ws.send_json({"type": "complete"})
-
-@app.websocket("/ws/chat")
-async def websocket_endpoint(websocket: WebSocket):
-    connection_id = str(uuid.uuid4())
-    await manager.connect(websocket, connection_id)
-
-    try:
-        while True:
-            data = await websocket.receive_json()
-
-            # Process message through agent
-            async for chunk in agent_manager.stream_response(
-                user_id=data['user_id'],
-                session_id=data['session_id'],
-                message=data['content']
-            ):
-                await manager.send_chunk(connection_id, chunk)
-
-            await manager.send_complete(connection_id)
-
-    except WebSocketDisconnect:
-        await manager.disconnect(connection_id)
+  try {
+    await agent.handle(sessionId, message, onChunk);
+    await conversationQueries.create(sessionId, 'assistant', fullResponse, { agent: agent.name });
+    res.write('data: {"done": true}\n\n');
+  } catch (error) {
+    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+  } finally {
+    res.end();
+  }
+}));
 ```
 
 **Client-Side Implementation:**
 ```typescript
-class WebSocketClient {
-  private ws: WebSocket;
-  private messageHandlers: Map<string, (chunk: string) => void> = new Map();
+async function streamResponse(payload: SendMessagePayload, onChunk: (chunk: string) => void) {
+  const response = await fetch('/api/chat/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
 
-  connect(url: string) {
-    this.ws = new WebSocket(url);
+  const reader = response.body?.getReader();
+  const decoder = new TextDecoder();
 
-    this.ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      if (data.type === 'chunk') {
-        this.messageHandlers.get('chunk')?.(data.content);
-      } else if (data.type === 'complete') {
-        this.messageHandlers.get('complete')?.('');
-      }
-    };
-  }
-
-  sendMessage(userId: string, sessionId: string, content: string) {
-    this.ws.send(JSON.stringify({
-      user_id: userId,
-      session_id: sessionId,
-      content
-    }));
-  }
-
-  onChunk(handler: (chunk: string) => void) {
-    this.messageHandlers.set('chunk', handler);
-  }
-
-  onComplete(handler: () => void) {
-    this.messageHandlers.set('complete', handler);
+  while (reader) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    const text = decoder.decode(value, { stream: true });
+    text.trim().split('\n\n').forEach(event => {
+      if (!event.startsWith('data:')) return;
+      const data = JSON.parse(event.replace('data: ', ''));
+      if (data.chunk) onChunk(data.chunk);
+    });
   }
 }
 ```
@@ -712,46 +684,37 @@ class WebSocketClient {
 6. Response sent back via Twilio Messaging API
 7. Conversation state persisted to database
 
-**Webhook Handler:**
-```python
-from twilio.rest import Client
-from twilio.twiml.messaging_response import MessagingResponse
+**Webhook Handler (Express):**
+```javascript
+import twilio from 'twilio';
 
-@app.post("/api/v1/webhooks/whatsapp")
-async def whatsapp_webhook(request: Request):
-    form_data = await request.form()
+router.post('/api/webhooks/whatsapp', asyncHandler(async (req, res) => {
+  const from = req.body.From;
+  let message = req.body.Body;
+  const mediaUrl = req.body.MediaUrl0;
 
-    # Extract message details
-    from_number = form_data.get('From')
-    message_body = form_data.get('Body')
-    media_url = form_data.get('MediaUrl0')  # For images/voice
+  const user = await whatsappQueries.getOrCreateUser(from);
+  const session = await sessionQueries.getOrCreate(user.id, { channel: 'whatsapp' });
 
-    # Get or create user
-    user = await get_or_create_whatsapp_user(from_number)
+  if (mediaUrl) {
+    message = await transcribeVoiceMessage(mediaUrl);
+  }
 
-    # Get active session
-    session = await get_or_create_session(user.id, channel='whatsapp')
+  const responseText = await agentManager.handle({
+    userId: user.id,
+    sessionId: session.id,
+    message
+  });
 
-    # Process message
-    if media_url:
-        # Handle voice message transcription
-        message_body = await transcribe_voice_message(media_url)
+  const client = twilio(accountSid, authToken);
+  await client.messages.create({
+    from: `whatsapp:${twilioNumber}`,
+    to: from,
+    body: responseText
+  });
 
-    response_text = await agent_manager.handle(
-        user_id=user.id,
-        session_id=session.id,
-        message=message_body
-    )
-
-    # Send response via Twilio
-    twilio_client = Client(account_sid, auth_token)
-    twilio_client.messages.create(
-        from_=f'whatsapp:{twilio_number}',
-        to=from_number,
-        body=response_text
-    )
-
-    return Response(status_code=200)
+  res.sendStatus(200);
+}));
 ```
 
 **Voice Message Transcription:**
@@ -824,21 +787,123 @@ class CachedMemoryManager(MemoryManager):
 
 ### Rate Limiting
 **Implementation:**
+```javascript
+import rateLimit from 'express-rate-limit';
+
+const conversationLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const validationLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10
+});
+
+router.post(
+  '/apps/manager/users/:userId/sessions/:sessionId/run',
+  conversationLimiter,
+  asyncHandler(conversationController.run)
+);
+
+router.post(
+  '/apps/manager/validate',
+  validationLimiter,
+  asyncHandler(validationController.validate)
+);
+```
+
+### Health Checks
 ```python
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+@app.get("/health")
+async def health_check():
+    checks = {
+        "database": await check_database_health(),
+        "redis": await check_redis_health(),
+        "llm_provider": await check_llm_health()
+    }
 
-limiter = Limiter(key_func=get_remote_address)
+    is_healthy = all(checks.values())
+    status = 200 if is_healthy else 503
 
-@app.post("/api/v1/apps/manager/users/{user_id}/sessions/{session_id}/run")
-@limiter.limit("100/minute")
-async def conversation_endpoint(user_id: str, session_id: str, request: Request):
-    ...
+    return Response(
+        content=json.dumps({"status": "healthy" if is_healthy else "unhealthy", "checks": checks}),
+        status_code=status
+    )
+```
 
-@app.post("/api/v1/apps/manager/validate")
-@limiter.limit("10/minute")
-async def validation_endpoint(request: Request):
-    ...
+---
+
+## Deployment Architecture
+
+### Infrastructure (Cloud-Agnostic)
+**Recommended Stack:**
+- **Compute:** Vercel (frontend), Railway/Render (backend)
+- **Database:** Supabase (PostgreSQL + Auth + Storage)
+- **Cache:** Upstash Redis
+- **LLM:** Anthropic Claude via LiteLLM
+- **Search:** Perplexity API
+- **Messaging:** Twilio (WhatsApp), Discord/Telegram APIs
+
+### Environment Configuration
+```bash
+# .env
+DATABASE_URL=postgresql://...
+SUPABASE_URL=https://...
+SUPABASE_ANON_KEY=...
+ANTHROPIC_API_KEY=...
+PERPLEXITY_API_KEY=...
+TWILIO_ACCOUNT_SID=...
+TWILIO_AUTH_TOKEN=...
+REDIS_URL=redis://...
+SECRET_KEY=...
+```
+
+### Docker Deployment
+```dockerfile
+# Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+```
+
+---
+
+## Error Handling & Resilience
+
+### Circuit Breaker Pattern
 ```
 
 ---
@@ -846,42 +911,38 @@ async def validation_endpoint(request: Request):
 ## Security Architecture
 
 ### Authentication & Authorization
-**JWT Strategy:**
-```python
-from jose import jwt
-from datetime import datetime, timedelta
+**JWT Strategy (jsonwebtoken):**
+```javascript
+import jwt from 'jsonwebtoken';
 
-def create_access_token(user_id: str) -> str:
-    payload = {
-        "sub": user_id,
-        "exp": datetime.utcnow() + timedelta(hours=1)
-    }
-    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+export function createAccessToken(userId) {
+  return jwt.sign({ sub: userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
+}
 
-def create_refresh_token(user_id: str) -> str:
-    payload = {
-        "sub": user_id,
-        "exp": datetime.utcnow() + timedelta(days=30)
-    }
-    return jwt.encode(payload, REFRESH_SECRET_KEY, algorithm="HS256")
+export function createRefreshToken(userId) {
+  return jwt.sign({ sub: userId }, process.env.JWT_REFRESH_SECRET, { expiresIn: '30d' });
+}
 ```
 
-**Authorization Middleware:**
-```python
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer
+**Authorization Middleware (Express):**
+```javascript
+import jwt from 'jsonwebtoken';
 
-security = HTTPBearer()
+export function authenticate(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, error: 'Missing token' });
+  }
 
-async def get_current_user(credentials = Depends(security)):
-    try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=["HS256"])
-        user_id = payload.get("sub")
-        if not user_id:
-            raise HTTPException(status_code=401)
-        return user_id
-    except:
-        raise HTTPException(status_code=401)
+  try {
+    const token = authHeader.replace('Bearer ', '');
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.userId = payload.sub;
+    next();
+  } catch (error) {
+    return res.status(401).json({ success: false, error: 'Invalid token' });
+  }
+}
 ```
 
 ### Data Protection
@@ -894,16 +955,18 @@ async def get_current_user(credentials = Depends(security)):
 - TLS 1.3 minimum
 
 **Input Sanitization:**
-```python
-from pydantic import BaseModel, validator
+```javascript
+import sanitizeHtml from 'sanitize-html';
+import { z } from 'zod';
 
-class MessageInput(BaseModel):
-    content: str
+export const sendMessageSchema = z.object({
+  sessionId: z.string().uuid(),
+  message: z.string().min(1).max(2000)
+});
 
-    @validator('content')
-    def sanitize_content(cls, v):
-        # Remove potential XSS
-        return bleach.clean(v, tags=[], strip=True)
+export function sanitizeMessage(content) {
+  return sanitizeHtml(content, { allowedTags: [], allowedAttributes: {} });
+}
 ```
 
 ---
@@ -911,20 +974,29 @@ class MessageInput(BaseModel):
 ## Monitoring & Observability
 
 ### Logging Strategy
-**Structured Logging:**
-```python
-import structlog
+**Structured Logging (Winston):**
+```javascript
+import winston from 'winston';
 
-logger = structlog.get_logger()
+export const logger = winston.createLogger({
+  level: 'info',
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+      )
+    })
+  ]
+});
 
-logger.info(
-    "agent_response",
-    user_id=user_id,
-    session_id=session_id,
-    agent="onboarding",
-    latency_ms=response_time,
-    tokens_used=token_count
-)
+logger.info('agent_response', {
+  userId,
+  sessionId,
+  agent: 'onboarding',
+  latencyMs: responseTime,
+  tokensUsed: tokenCount
+});
 ```
 
 **Log Aggregation:**

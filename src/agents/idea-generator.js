@@ -5,41 +5,35 @@
 
 import { BaseAgent } from './base.js';
 
-const SYSTEM_PROMPT = `You are VentureBot, a creative idea generator who helps users turn real pain points into innovative, practical ideas.
+import { conversationQueries } from '../database/queries.js';
 
-Always respond as VentureBot. Use proper grammar, punctuation, formatting, spacing, indentation, and line breaks.
+const SYSTEM_PROMPT = `You are VentureBot, helping users choose a business idea to pursue.
 
-Technical Concepts to Leverage (pick at least one per idea):
-- Value & Productivity Paradox
-- IT as Competitive Advantage
-- E-Business Models
-- Network Effects & Long Tail
-- Crowd-sourcing
-- Data-driven value
-- Web 2.0/3.0 & Social Media Platforms
-- Software as a Service
+IMPORTANT RULES:
+- Never use markdown formatting (no asterisks, no bold, no bullets)
+- Write in plain, conversational language
+- Keep responses concise
 
-Your role:
-1) Idea Generation
-   - Generate 5 concise app ideas (≤ 15 words each) targeting the user's pain point.
-   - Keep ideas clear, specific, and feasible for a first version.
+YOUR JOB:
+1. When ideas have been presented, help user pick one
+2. When user picks an idea (says "first one", "number 1", "I like the app idea", etc.), CONFIRM their choice and move to validation
+3. DO NOT regenerate or rephrase ideas they've already seen
 
-2) Technical Integration
-   - For each idea, add a short line "Concept:" naming the BADM 350 concept(s) applied.
+WHEN USER SELECTS AN IDEA:
+If user says something like "first one", "I like #1", "the app sounds good", etc.:
+- Confirm: "Great choice! You're going with [brief description of their pick]."
+- Then say: "Let me validate this idea and see how it stacks up in the market. Moving to validation now!"
+- DO NOT ask more questions or present more ideas
 
-3) Output Format (for the USER):
-   - Present a numbered list 1..5.
-   - Each item: a one-line idea (≤ 15 words), then a new line with "Concept: …".
-   - Do NOT include raw JSON in your user-visible message.
+WHEN USER WANTS DIFFERENT IDEAS:
+If user says "none of these", "something else", "different ideas":
+- Generate 3 NEW and DIFFERENT ideas
+- Don't repeat previous suggestions
 
-4) Selection Flow
-   - End your message with a bold call to action:
-     **Reply with the number of the idea you want to validate next.**
+WHEN USER IS UNSURE:
+If user seems uncertain, ask ONE clarifying question, then help them decide.
 
-Rules:
-- Don't rank or over-explain; keep it inspiring and practical.
-- Ensure each idea plainly addresses the stated pain.
-- Never show JSON to the user.`;
+Remember: Once they pick, CONFIRM and MOVE ON. Don't loop.`;
 
 export class IdeaGeneratorAgent extends BaseAgent {
   constructor() {
@@ -74,6 +68,74 @@ export class IdeaGeneratorAgent extends BaseAgent {
       return await this.send(messages);
     } catch (error) {
       throw new Error(`Idea generator error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Chat method for handling conversation flow (selection, clarification, etc.)
+   */
+  async chat(sessionId, userMessage, onChunk = null) {
+    try {
+      // Get conversation history
+      const historyResult = await conversationQueries.getHistory(sessionId, 20);
+      const conversationHistory = historyResult.success ? historyResult.messages : [];
+      
+      // Get context from memory
+      const userPain = await this.getMemory(sessionId, 'USER_PAIN');
+      const userProfile = await this.getMemory(sessionId, 'USER_PROFILE');
+
+      // Build messages with history
+      const messages = [];
+      
+      // Add context
+      messages.push({
+        role: 'system',
+        content: `Context: User "${userProfile?.name || 'User'}" has pain point: "${userPain?.description || 'unknown'}"`
+      });
+      
+      // Add conversation history
+      const recentHistory = conversationHistory.slice(-12);
+      for (const msg of recentHistory) {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          messages.push({ role: msg.role, content: msg.content });
+        }
+      }
+      
+      // Add current message if not in history
+      const lastMessage = recentHistory[recentHistory.length - 1];
+      if (!lastMessage || lastMessage.role !== 'user' || lastMessage.content !== userMessage) {
+        messages.push({ role: 'user', content: userMessage });
+      }
+
+      // Check if user is selecting an idea
+      const selectionPatterns = [
+        /first|1st|number 1|#1|one\b/i,
+        /second|2nd|number 2|#2|two\b/i,
+        /third|3rd|number 3|#3|three\b/i,
+        /fourth|4th|number 4|#4|four\b/i,
+        /fifth|5th|number 5|#5|five\b/i
+      ];
+      
+      const lowerMessage = userMessage.toLowerCase();
+      for (let i = 0; i < selectionPatterns.length; i++) {
+        if (selectionPatterns[i].test(lowerMessage) || lowerMessage.includes(`${i + 1}`)) {
+          // User selected an idea - store it and signal completion
+          await this.setMemory(sessionId, 'SelectedIdea', {
+            id: i + 1,
+            idea: `Idea ${i + 1} selected from conversation`,
+            userSelection: userMessage
+          });
+          break;
+        }
+      }
+
+      // Stream response
+      if (onChunk) {
+        return await this.stream(messages, onChunk);
+      }
+      return await this.send(messages);
+    } catch (error) {
+      throw new Error(`Idea generator chat error: ${error.message}`);
     }
   }
 

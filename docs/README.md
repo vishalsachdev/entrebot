@@ -21,8 +21,8 @@ This directory contains the complete technical architecture for VentureBot, an A
 - High-level architecture diagram
 - Component architecture (Frontend, API Gateway, Agent Orchestration, Tools, Data Layer)
 - Agent orchestration system (Manager + specialized agents)
-- Real-time streaming architecture (WebSocket protocol)
-- WhatsApp integration layer (Twilio)
+- Real-time streaming architecture (Server-Sent Events)
+- WhatsApp integration layer (future Twilio work)
 - Memory management system
 - Scalability & performance strategies
 - Security architecture
@@ -33,13 +33,13 @@ This directory contains the complete technical architecture for VentureBot, an A
 - Architecture Decision Records (ADRs)
 
 **Key Decisions:**
-- Multi-agent microservices architecture
+- Multi-agent modular backend (single Express service today)
 - Supabase for database + auth + real-time
-- FastAPI backend with Python 3.11
+- Node.js 18 + Express backend
 - React frontend with TypeScript
-- Google ADK for agent orchestration
-- WebSockets for streaming responses
-- Redis for caching and performance
+- Custom BaseAgent orchestration instead of Google ADK
+- Server-Sent Events (SSE) for streaming responses
+- Redis cache (planned) for performance
 
 ---
 
@@ -197,17 +197,17 @@ Validator → PRD → BuilderPrompt
 ```
 
 ### Real-Time Streaming
-**WebSocket protocol:**
-1. Client connects and authenticates
-2. Client sends message
-3. Server streams response chunks character-by-character
-4. Server sends completion signal
-5. Memory updates persisted
+**Server-Sent Events (SSE) protocol:**
+1. Client POSTs to `/api/chat/stream`
+2. Express keeps HTTP connection open (`text/event-stream`)
+3. Assistant tokens stream as SSE `data` events
+4. Server emits completion signal and closes stream
+5. Memory updates persisted in Supabase
 
 **Benefits:**
 - Immediate feedback
-- Better UX for long responses
-- Progress indicators during validation
+- Works over standard HTTP infra
+- Simplified reconnect & auth handling for MVP
 
 ### Multi-Channel Access
 **Unified backend supports:**
@@ -236,10 +236,10 @@ Validator → PRD → BuilderPrompt
 **Rationale:** Built-in auth, real-time, storage, managed infrastructure
 **Trade-offs:** Vendor lock-in vs. reduced operational complexity
 
-### ADR-003: WebSocket for Streaming
-**Decision:** WebSockets instead of Server-Sent Events (SSE)
-**Rationale:** Bi-directional communication, better mobile support
-**Trade-offs:** Connection management complexity vs. simpler HTTP
+### ADR-003: Server-Sent Events for Streaming
+**Decision:** SSE instead of WebSockets for MVP streaming
+**Rationale:** Simpler to operate on Express/HTTP stack; conversations are request/response oriented
+**Trade-offs:** No true bidirectional streaming
 
 ### ADR-004: Memory as Database Table
 **Decision:** Store agent memory in database, not in-memory
@@ -309,16 +309,16 @@ Validator → PRD → BuilderPrompt
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
 | **Frontend** | React + TypeScript + Vite | Web interface |
-| **Backend** | FastAPI + Python 3.11 | API server |
+| **Backend** | Node.js 18 + Express | API server |
 | **Database** | Supabase (PostgreSQL) | Primary data store |
-| **Cache** | Redis (Upstash) | Memory caching |
-| **Auth** | Supabase Auth + JWT | Authentication |
-| **LLM** | Claude (Anthropic) via LiteLLM | Agent intelligence |
+| **Cache** | (Planned) Redis | Memory caching |
+| **Auth** | Supabase Auth + lightweight JWT middleware | Authentication |
+| **LLM** | OpenAI GPT-4 / Claude via custom service | Agent intelligence |
 | **Search** | Perplexity API | Market research |
-| **Messaging** | Twilio (WhatsApp) | Multi-channel |
-| **Agent Framework** | Google ADK | Agent orchestration |
-| **Real-Time** | WebSockets | Streaming responses |
-| **Hosting** | Vercel + Railway | Cloud deployment |
+| **Messaging** | Twilio (WhatsApp placeholder) | Multi-channel |
+| **Agent Framework** | Custom BaseAgent classes | Agent orchestration |
+| **Real-Time** | Server-Sent Events | Streaming responses |
+| **Hosting** | Vercel (frontend) + Railway/Render (Express API) | Cloud deployment |
 | **Monitoring** | Sentry + DataDog | Error tracking, metrics |
 
 ---
@@ -327,20 +327,19 @@ Validator → PRD → BuilderPrompt
 
 ### Local Development
 ```bash
-# Backend
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload
+# Install dependencies (root)
+npm install
 
-# Frontend
+# Run Express API with nodemon
+npm run dev
+
+# Frontend (separate terminal)
 cd frontend
 npm install
 npm run dev
 
 # Database
-# Use Supabase local development or cloud project
+# Use Supabase project (see docs/SUPABASE_SETUP.md)
 ```
 
 ### Environment Variables

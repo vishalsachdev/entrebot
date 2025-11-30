@@ -24,12 +24,26 @@ interface AgentProviderProps {
   children: ReactNode;
 }
 
-// Mock agents data - in production, this would come from the API
+// Agents for the user journey - only show user-facing agents in selector
 const mockAgents: Agent[] = [
+  {
+    id: 'onboarding',
+    name: 'Start Here',
+    description: 'Tell me about yourself and a problem you want to solve. I\'ll help you turn it into a business idea.',
+    specialization: ['onboarding', 'pain discovery', 'profile setup'],
+    personality: {
+      color: 'text-emerald-600',
+      icon: 'user-plus',
+      tone: 'friendly and supportive',
+      expertise: ['Pain point discovery', 'User profiling', 'Getting started'],
+    },
+    availability: 'available',
+    recommendedFor: [],
+  },
   {
     id: 'idea-generator',
     name: 'Idea Generator',
-    description: 'Helps you brainstorm and refine business ideas',
+    description: 'Generates business ideas based on your pain point.',
     specialization: ['ideation', 'brainstorming', 'market research'],
     personality: {
       color: 'text-yellow-600',
@@ -38,113 +52,35 @@ const mockAgents: Agent[] = [
       expertise: ['Business ideation', 'Market analysis', 'Trend spotting'],
     },
     availability: 'available',
-    recommendedFor: [
-      {
-        id: 'discovery',
-        name: 'Discovery',
-        description: 'Explore and validate your business concept',
-        status: 'not_started',
-        milestones: [],
-        estimatedDuration: '1-2 weeks',
-        requiredAgents: ['idea-generator'],
-      },
-    ],
+    recommendedFor: [],
   },
   {
     id: 'validator',
     name: 'Validator',
-    description: 'Validates your business concept and identifies risks',
+    description: 'Validates your selected idea with market analysis.',
     specialization: ['validation', 'risk assessment', 'feasibility'],
     personality: {
       color: 'text-blue-600',
       icon: 'shield-check',
-      tone: 'analytical and thorough',
+      tone: 'analytical and helpful',
       expertise: ['Market validation', 'Risk analysis', 'Feasibility studies'],
     },
     availability: 'available',
-    recommendedFor: [
-      {
-        id: 'validation',
-        name: 'Validation',
-        description: 'Test and validate your business hypothesis',
-        status: 'not_started',
-        milestones: [],
-        estimatedDuration: '2-3 weeks',
-        requiredAgents: ['validator'],
-      },
-    ],
-  },
-  {
-    id: 'strategist',
-    name: 'Strategist',
-    description: 'Develops comprehensive business strategies and plans',
-    specialization: ['strategy', 'planning', 'roadmapping'],
-    personality: {
-      color: 'text-purple-600',
-      icon: 'target',
-      tone: 'strategic and forward-thinking',
-      expertise: ['Business strategy', 'Go-to-market planning', 'Competitive analysis'],
-    },
-    availability: 'available',
-    recommendedFor: [
-      {
-        id: 'planning',
-        name: 'Planning',
-        description: 'Create detailed business and execution plans',
-        status: 'not_started',
-        milestones: [],
-        estimatedDuration: '3-4 weeks',
-        requiredAgents: ['strategist'],
-      },
-    ],
+    recommendedFor: [],
   },
   {
     id: 'builder',
     name: 'Builder',
-    description: 'Guides you through product development and MVP creation',
-    specialization: ['product development', 'mvp', 'technical guidance'],
+    description: 'Helps you create PRDs, landing pages, and plan your MVP.',
+    specialization: ['product', 'development', 'planning'],
     personality: {
-      color: 'text-green-600',
+      color: 'text-purple-600',
       icon: 'hammer',
-      tone: 'practical and hands-on',
-      expertise: ['Product development', 'MVP creation', 'Technical architecture'],
+      tone: 'practical and action-oriented',
+      expertise: ['PRD creation', 'Landing pages', 'MVP planning', 'Customer discovery'],
     },
     availability: 'available',
-    recommendedFor: [
-      {
-        id: 'building',
-        name: 'Building',
-        description: 'Develop your minimum viable product',
-        status: 'not_started',
-        milestones: [],
-        estimatedDuration: '4-8 weeks',
-        requiredAgents: ['builder'],
-      },
-    ],
-  },
-  {
-    id: 'growth-advisor',
-    name: 'Growth Advisor',
-    description: 'Helps scale your business and optimize growth',
-    specialization: ['growth', 'marketing', 'scaling'],
-    personality: {
-      color: 'text-orange-600',
-      icon: 'trending-up',
-      tone: 'energetic and results-driven',
-      expertise: ['Growth hacking', 'Marketing strategy', 'Customer acquisition'],
-    },
-    availability: 'available',
-    recommendedFor: [
-      {
-        id: 'growth',
-        name: 'Growth',
-        description: 'Scale and optimize your business',
-        status: 'not_started',
-        milestones: [],
-        estimatedDuration: 'Ongoing',
-        requiredAgents: ['growth-advisor'],
-      },
-    ],
+    recommendedFor: [],
   },
 ];
 

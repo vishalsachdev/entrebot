@@ -199,14 +199,18 @@ export const memoryQueries = {
       const supabase = getSupabase();
       const { data, error } = await supabase
         .from('memory')
-        .upsert([
+        .upsert(
           {
             session_id: sessionId,
             key,
             value: typeof value === 'object' ? JSON.stringify(value) : value,
             updated_at: new Date().toISOString()
+          },
+          { 
+            onConflict: 'session_id,key',
+            ignoreDuplicates: false 
           }
-        ])
+        )
         .select()
         .single();
 

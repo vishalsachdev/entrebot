@@ -25,27 +25,39 @@ const updateUserSchema = Joi.object({
 });
 
 /**
- * Create new user
+ * Create new user or return existing
  * POST /api/users
  */
 router.post('/', validateBody(createUserSchema), asyncHandler(async (req, res) => {
   const { email, name, phone } = req.body;
 
-  logger.info(`Creating user with email: ${email}`);
+  logger.info(`Creating or getting user with email: ${email}`);
 
+  // Try to create user
   const result = await userQueries.create(email, { name, phone });
 
-  if (!result.success) {
-    logger.error(`Failed to create user: ${result.error}`);
-    throw new Error(result.error);
+  if (result.success) {
+    logger.info(`User created successfully: ${result.user.id}`);
+    return res.status(201).json({
+      success: true,
+      data: result.user
+    });
   }
 
-  logger.info(`User created successfully: ${result.user.id}`);
+  // If duplicate key error, get existing user
+  if (result.error?.includes('duplicate key')) {
+    logger.info(`User exists, fetching: ${email}`);
+    const existingResult = await userQueries.getByEmail(email);
+    if (existingResult.success && existingResult.user) {
+      return res.status(200).json({
+        success: true,
+        data: existingResult.user
+      });
+    }
+  }
 
-  res.status(201).json({
-    success: true,
-    data: result.user
-  });
+  logger.error(`Failed to create user: ${result.error}`);
+  throw new Error(result.error);
 }));
 
 /**

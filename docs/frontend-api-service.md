@@ -11,6 +11,108 @@ The frontend API service layer provides a comprehensive, production-ready interf
 - **JSDoc comments** for IDE intellisense
 - **Easy-to-use functions** for all 4 database tables
 
+## Implementation Summary (consolidated)
+
+This section captures the high-level status that previously lived in `api-service-implementation-summary.md`.
+
+| File | Purpose |
+| --- | --- |
+| `/frontend/src/services/api.ts` (~900 LOC) | Core API client with retries, timeout handling, typed services for users, sessions, conversations, memory, plus auth helpers |
+| `/frontend/src/types/index.ts` | Shared `Db*` models, `ApiResponse`, `ApiError`, and request/response types consumed by the client |
+| `/frontend/src/examples/api-usage-examples.tsx` | End-to-end React usage examples (React Query hooks, components, app flow) |
+| `docs/frontend-api-service.md` | This canonical documentation (setup, usage, advanced guidance) |
+
+**Client capabilities:**
+
+- ✅ Automatic retry (3 attempts, exponential 1s → 2s → 4s) for network/5xx/408/429 errors
+- ✅ Request timeout control (default 30s; configurable via `apiClient.setTimeout`)
+- ✅ Strong typing + JSDoc for IDE support
+- ✅ Centralized `ApiError` structure for consistent error handling
+- ✅ Ready for production (auth token helpers, error boundaries, React Query integration patterns)
+
+**Backend contract:** The client expects the REST endpoints enumerated in the [API Endpoint Reference](#api-endpoint-reference). Consult `docs/api-design.md` for the authoritative backend specification (auth, parameters, streaming, rate limits, etc.).
+
+## Quick Reference (cheatsheet)
+
+> Migrated from `api-service-quick-reference.md` so everything lives in one place.
+
+```typescript
+import {
+  userService,
+  sessionService,
+  conversationService,
+  memoryService,
+  apiClient,
+  type ApiError,
+} from '@/services/api';
+```
+
+**User Service**
+
+```typescript
+userService.createUser(email, data);
+userService.getUser(userId);
+userService.getUserByEmail(email);
+userService.updateUser(userId, updates);
+userService.deleteUser(userId);
+userService.listUsers(limit, offset);
+```
+
+**Session Service**
+
+```typescript
+sessionService.createSession(userId, metadata);
+sessionService.getSession(sessionId);
+sessionService.getUserSessions(userId, limit);
+sessionService.getSessionWithData(sessionId, includeMessages, includeMemory);
+sessionService.updateSession(sessionId, metadata);
+sessionService.deleteSession(sessionId);
+```
+
+**Conversation Service**
+
+```typescript
+conversationService.addMessage(sessionId, role, content, metadata);
+conversationService.getConversationHistory(sessionId, limit, offset);
+conversationService.getConversationSummary(sessionId, firstN, lastN);
+conversationService.getMessage(messageId);
+conversationService.searchMessages(sessionId, query, limit);
+conversationService.updateMessage(messageId, updates);
+conversationService.deleteMessage(messageId);
+```
+
+**Memory Service**
+
+```typescript
+memoryService.setMemory(sessionId, key, value);
+memoryService.setMultipleMemory(sessionId, data);
+memoryService.getMemory(sessionId, key);
+memoryService.getAllMemory(sessionId);
+memoryService.getMemoryObject(sessionId, key);
+memoryService.updateMemory(sessionId, key, value);
+memoryService.deleteMemory(sessionId, key);
+memoryService.clearMemory(sessionId);
+```
+
+**Auth & Client Helpers**
+
+```typescript
+apiClient.setToken('jwt');
+apiClient.clearToken();
+apiClient.setTimeout(60000);
+```
+
+**Error Handling Skeleton**
+
+```typescript
+try {
+  await userService.getUser('id');
+} catch (error) {
+  const apiError = error as ApiError;
+  console.error(apiError.message, apiError.status, apiError.code);
+}
+```
+
 ## Installation & Setup
 
 The API service is located at `/frontend/src/services/api.ts` and is ready to use out of the box.
