@@ -21,6 +21,62 @@ const createSessionSchema = Joi.object({
 });
 
 /**
+ * GET /api/sessions
+ * List sessions for a user by email
+ */
+router.get('/', asyncHandler(async (req, res) => {
+  const { email } = req.query;
+  const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+
+  if (!email) {
+    const error = new Error('Email query parameter is required');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  logger.info(`Fetching sessions for email: ${email}`);
+
+  const supabase = getSupabase();
+  
+  // First get user by email
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .single();
+
+  if (userError || !user) {
+    // No user found, return empty array
+    return res.status(200).json({
+      success: true,
+      data: [],
+      count: 0
+    });
+  }
+
+  // Get sessions for this user
+  const { data: sessions, error: sessionsError } = await supabase
+    .from('sessions')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+
+  if (sessionsError) {
+    logger.error(`Failed to fetch sessions: ${sessionsError.message}`);
+    throw new Error(sessionsError.message);
+  }
+
+  logger.info(`Retrieved ${sessions?.length || 0} sessions for email: ${email}`);
+
+  res.status(200).json({
+    success: true,
+    data: sessions || [],
+    count: sessions?.length || 0
+  });
+}));
+
+/**
  * POST /api/sessions
  * Create new session
  */

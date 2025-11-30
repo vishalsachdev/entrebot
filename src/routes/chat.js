@@ -335,8 +335,9 @@ router.post('/stream', validateBody(schemas.sendMessage), asyncHandler(async (re
 router.get('/history/:sessionId', asyncHandler(async (req, res) => {
   const { sessionId } = req.params;
   const limit = parseInt(req.query.limit || '50', 10);
+  const countOnly = req.query.countOnly === 'true';
 
-  const result = await conversationQueries.getHistory(sessionId, limit);
+  const result = await conversationQueries.getHistory(sessionId, countOnly ? 1000 : limit);
 
   if (!result.success) {
     throw new Error(result.error);
@@ -344,7 +345,8 @@ router.get('/history/:sessionId', asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    messages: result.messages
+    messages: countOnly ? [] : result.messages,
+    count: result.messages?.length || 0
   });
 }));
 
