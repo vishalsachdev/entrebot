@@ -52,38 +52,14 @@ const History = () => {
       const data = await response.json();
 
       if (data.success && data.data) {
-        // Fetch additional details for each session
-        const sessionsWithDetails = await Promise.all(
-          data.data.map(async (session: Session) => {
-            try {
-              // Get message count
-              const historyResponse = await fetch(`${API_BASE_URL}/chat/history/${session.id}?countOnly=true`);
-              const historyData = await historyResponse.json();
-              
-              // Get progress
-              const progressResponse = await fetch(`${API_BASE_URL}/chat/progress/${session.id}`);
-              const progressData = await progressResponse.json();
-
-              return {
-                ...session,
-                messageCount: historyData.count || 0,
-                progress: progressData.success ? {
-                  currentPhase: progressData.currentPhase,
-                  phaseName: progressData.phaseName,
-                } : undefined,
-              };
-            } catch {
-              return session;
-            }
-          })
-        );
-
         // Sort by updated_at descending
-        sessionsWithDetails.sort((a, b) => 
+        const sortedSessions = data.data.sort((a: Session, b: Session) => 
           new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
         );
 
-        setSessions(sessionsWithDetails);
+        // Set sessions immediately without extra API calls
+        // Progress/count will be fetched lazily or shown as defaults
+        setSessions(sortedSessions);
       }
     } catch (err) {
       console.error('Failed to load sessions:', err);
@@ -204,7 +180,7 @@ const History = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <h3 className="font-medium text-neutral-900 truncate">
-                              {session.progress?.phaseName || 'Discovery'} Phase
+                              Session from {new Date(session.created_at).toLocaleDateString()}
                             </h3>
                             {currentSessionId === session.id && (
                               <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
@@ -217,12 +193,10 @@ const History = () => {
                               <Calendar className="h-3 w-3" />
                               {formatDate(session.updated_at)}
                             </span>
-                            {session.messageCount !== undefined && (
-                              <span className="flex items-center gap-1">
-                                <MessageSquare className="h-3 w-3" />
-                                {session.messageCount} messages
-                              </span>
-                            )}
+                            <span className="flex items-center gap-1">
+                              <MessageSquare className="h-3 w-3" />
+                              {session.metadata?.agent || 'onboarding'}
+                            </span>
                           </div>
                         </div>
                       </div>
