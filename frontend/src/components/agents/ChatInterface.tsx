@@ -110,6 +110,20 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
               timestamp: new Date(msg.created_at),
               status: 'delivered',
             }));
+            
+            // Prepend greeting if first message is from user (greeting wasn't stored)
+            if (loadedMessages[0]?.role === 'user') {
+              const greeting = "Hey there! I'm VentureBot, your entrepreneurship coach. I'm here to help you discover a real problem worth solving and turn it into a business idea. Think of me as your thinking partner - I'll ask questions to help you dig deep and find something meaningful. Let's start simple: what's your name?";
+              loadedMessages.unshift({
+                id: `msg-greeting-restored`,
+                role: 'assistant',
+                content: greeting,
+                agentId: 'onboarding',
+                timestamp: new Date(new Date(loadedMessages[0].timestamp).getTime() - 1000),
+                status: 'delivered',
+              });
+            }
+            
             setMessages(loadedMessages);
             hasGreeted.current = true; // Don't show greeting if we have history
             console.log(`Loaded ${loadedMessages.length} messages from history`);
