@@ -22,6 +22,34 @@ interface ChatInterfaceProps {
   className?: string;
 }
 
+// Phase configuration matching backend orchestrator
+const PHASES = [
+  { id: 'discovery', label: 'Discover', icon: '🔍', description: 'Find your pain point' },
+  { id: 'ideation', label: 'Ideate', icon: '💡', description: 'Generate solutions' },
+  { id: 'validation', label: 'Validate', icon: '✓', description: 'Test assumptions' },
+  { id: 'strategy', label: 'Strategy', icon: '📋', description: 'Plan your product' },
+  { id: 'building', label: 'Build', icon: '🔨', description: 'Create your MVP' },
+  { id: 'launch', label: 'Launch', icon: '🚀', description: 'Go to market' },
+  { id: 'growth', label: 'Grow', icon: '📈', description: 'Scale your business' },
+];
+
+interface Progress {
+  currentPhase: string;
+  phaseName: string;
+  phaseDescription: string;
+  progress: {
+    percentage: number;
+    completedPhases: string[];
+    remainingPhases: string[];
+  };
+  milestones: string[];
+  context: {
+    userName?: string;
+    painPoint?: string;
+    selectedIdea?: string;
+  };
+}
+
 const ChatInterface = ({ className }: ChatInterfaceProps) => {
   const { currentAgent, switchAgent } = useAgent();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -29,7 +57,7 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [, setError] = useState<string | null>(null);
-  const [journeyStage, setJourneyStage] = useState<'onboarding' | 'ideas' | 'validation' | 'building'>('onboarding');
+  const [progress, setProgress] = useState<Progress | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hasAutoStarted = useRef(false);
@@ -60,13 +88,21 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
       if (savedSessionId) {
         setSessionId(savedSessionId);
         try {
-          // Load conversation history
-          const response = await fetch(`${API_BASE_URL}/chat/history/${savedSessionId}`);
-          const data = await response.json();
-          console.log('History response:', data);
+          // Load conversation history and progress in parallel
+          const [historyResponse, progressResponse] = await Promise.all([
+            fetch(`${API_BASE_URL}/chat/history/${savedSessionId}`),
+            fetch(`${API_BASE_URL}/chat/progress/${savedSessionId}`)
+          ]);
           
-          if (data.success && data.messages && data.messages.length > 0) {
-            const loadedMessages: Message[] = data.messages.map((msg: any) => ({
+          const historyData = await historyResponse.json();
+          const progressData = await progressResponse.json();
+          
+          console.log('History response:', historyData);
+          console.log('Progress response:', progressData);
+          
+          // Load messages
+          if (historyData.success && historyData.messages && historyData.messages.length > 0) {
+            const loadedMessages: Message[] = historyData.messages.map((msg: any) => ({
               id: msg.id,
               role: msg.role,
               content: msg.content,
@@ -77,6 +113,12 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
             setMessages(loadedMessages);
             hasGreeted.current = true; // Don't show greeting if we have history
             console.log(`Loaded ${loadedMessages.length} messages from history`);
+          }
+          
+          // Load progress
+          if (progressData.success) {
+            setProgress(progressData);
+            console.log(`Loaded progress: phase=${progressData.currentPhase}, ${progressData.milestones?.length || 0} milestones`);
           }
         } catch (err) {
           console.error('Failed to load history:', err);
@@ -239,11 +281,15 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
         };
         setMessages((prev) => [...prev, agentMessage]);
 
+        // Update progress from backend response
+        if (data.progress) {
+          setProgress(data.progress);
+        }
+
         // Auto-switch to Idea Generator when onboarding completes
         if (data.onboardingComplete && currentAgent.id === 'onboarding') {
           // Switch agent immediately (not in setTimeout)
           switchAgent('idea-generator');
-          setJourneyStage('ideas');
           
           // Then generate ideas
           setIsTyping(true);
@@ -281,7 +327,6 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
         // Check from any agent since selection might come while still showing as onboarding
         if (data.ideaSelected) {
           switchAgent('validator');
-          setJourneyStage('validation');
           
           // Trigger validation
           setIsTyping(true);
@@ -317,7 +362,6 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
 
         // Auto-switch back to Idea Generator when user wants new ideas
         if (data.backToIdeas) {
-          setJourneyStage('ideas');
           setTimeout(async () => {
             switchAgent('idea-generator');
             
@@ -357,7 +401,6 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
         // Auto-switch to Builder when user wants to proceed from validation
         if (data.proceedToBuild) {
           switchAgent('builder');
-          setJourneyStage('building');
           
           const builderMessage: Message = {
             id: `msg-${Date.now() + 6}`,
@@ -399,69 +442,87 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
     }
   };
 
+  // Get current phase from progress or default to discovery
+  const currentPhase = progress?.currentPhase || 'discovery';
+  const completedPhases = progress?.progress?.completedPhases || [];
+  const progressPercentage = progress?.progress?.percentage || 0;
+
   return (
     <div className={cn('flex flex-col h-full', className)}>
-      {/* Journey Progress - Enhanced with labels and navigation */}
+      {/* Journey Progress - 7 Phases with Progress Bar */}
       <div className="border-b border-neutral-200 px-4 py-3 bg-gradient-to-r from-primary-50 to-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            {[
-              { id: 'onboarding', label: 'Discover', icon: '🔍', description: 'Find your pain point' },
-              { id: 'ideas', label: 'Ideate', icon: '💡', description: 'Generate solutions' },
-              { id: 'validation', label: 'Validate', icon: '✓', description: 'Test assumptions' },
-              { id: 'building', label: 'Build', icon: '🚀', description: 'Create your MVP' }
-            ].map((stage, index) => {
-              const stages = ['onboarding', 'ideas', 'validation', 'building'];
-              const currentIndex = stages.indexOf(journeyStage);
-              const isCompleted = currentIndex > index;
-              const isCurrent = journeyStage === stage.id;
-              const isClickable = isCompleted; // Can go back to completed stages
-              
-              return (
-                <div key={stage.id} className="flex items-center">
-                  <button
-                    onClick={() => isClickable && setJourneyStage(stage.id as typeof journeyStage)}
-                    disabled={!isClickable}
-                    className={cn(
-                      'flex flex-col items-center px-2 py-1 rounded-lg transition-all',
-                      isClickable && 'hover:bg-primary-100 cursor-pointer',
-                      !isClickable && !isCurrent && 'opacity-50'
-                    )}
-                    title={stage.description}
-                  >
-                    <div className={cn(
-                      'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium mb-1',
-                      isCurrent ? 'bg-primary-600 text-white ring-2 ring-primary-300 ring-offset-1' :
-                      isCompleted ? 'bg-primary-200 text-primary-700' : 'bg-neutral-200 text-neutral-500'
-                    )}>
-                      {isCompleted ? '✓' : stage.icon}
-                    </div>
-                    <span className={cn(
-                      'text-xs font-medium',
-                      isCurrent ? 'text-primary-700' : isCompleted ? 'text-primary-600' : 'text-neutral-500'
-                    )}>
-                      {stage.label}
-                    </span>
-                  </button>
-                  {index < 3 && (
-                    <div className={cn(
-                      'w-6 h-0.5 mx-0.5',
-                      isCompleted ? 'bg-primary-400' : 'bg-neutral-200'
-                    )} />
-                  )}
-                </div>
-              );
-            })}
+        {/* Progress Bar */}
+        <div className="mb-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-medium text-neutral-600">
+              {progress?.phaseName || 'Discovery'}: {progress?.phaseDescription || 'Find your pain point'}
+            </span>
+            <span className="text-xs font-semibold text-primary-600">{progressPercentage}%</span>
           </div>
-          <div className="text-right">
-            <span className="text-xs text-neutral-500">Current Phase</span>
-            <p className="text-sm font-semibold text-primary-700 capitalize">
-              {journeyStage === 'onboarding' ? 'Discovery' : 
-               journeyStage === 'ideas' ? 'Ideation' :
-               journeyStage === 'validation' ? 'Validation' : 'Building'}
-            </p>
+          <div className="h-2 bg-neutral-200 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-500"
+              style={{ width: `${progressPercentage}%` }}
+            />
           </div>
         </div>
+
+        {/* Phase Steps */}
+        <div className="flex items-center justify-between overflow-x-auto pb-1">
+          {PHASES.map((phase, index) => {
+            const isCompleted = completedPhases.includes(phase.id);
+            const isCurrent = currentPhase === phase.id;
+            
+            return (
+              <div key={phase.id} className="flex items-center flex-shrink-0">
+                <div
+                  className={cn(
+                    'flex flex-col items-center px-1.5 py-1 rounded-lg transition-all',
+                    isCurrent && 'bg-primary-50'
+                  )}
+                  title={phase.description}
+                >
+                  <div className={cn(
+                    'w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium mb-0.5',
+                    isCurrent ? 'bg-primary-600 text-white ring-2 ring-primary-300 ring-offset-1' :
+                    isCompleted ? 'bg-primary-200 text-primary-700' : 'bg-neutral-200 text-neutral-400'
+                  )}>
+                    {isCompleted ? '✓' : phase.icon}
+                  </div>
+                  <span className={cn(
+                    'text-[10px] font-medium whitespace-nowrap',
+                    isCurrent ? 'text-primary-700' : isCompleted ? 'text-primary-600' : 'text-neutral-400'
+                  )}>
+                    {phase.label}
+                  </span>
+                </div>
+                {index < PHASES.length - 1 && (
+                  <div className={cn(
+                    'w-4 h-0.5 mx-0.5 flex-shrink-0',
+                    isCompleted ? 'bg-primary-400' : 'bg-neutral-200'
+                  )} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Context Summary (if available) */}
+        {progress?.context?.userName && (
+          <div className="mt-2 pt-2 border-t border-neutral-100 flex items-center gap-4 text-xs text-neutral-500">
+            <span>👤 {progress.context.userName}</span>
+            {progress.context.painPoint && (
+              <span className="truncate max-w-[200px]" title={progress.context.painPoint}>
+                💡 {progress.context.painPoint}
+              </span>
+            )}
+            {progress.milestones?.length > 0 && (
+              <span className="text-primary-600">
+                🏆 {progress.milestones.length} milestone{progress.milestones.length > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Chat Header */}
@@ -497,7 +558,7 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
                 // Clear session and start fresh
                 localStorage.removeItem('venturebot_session_id');
                 setSessionId(null);
-                setJourneyStage('onboarding');
+                setProgress(null); // Reset progress
                 hasLoadedHistory.current = true;
                 setIsLoadingHistory(false);
                 
