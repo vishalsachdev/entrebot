@@ -212,6 +212,18 @@ export class OnboardingAgent extends BaseAgent {
         existingPain.willingnessSignal = true;
       }
       
+      // Track current solution (what they do now to deal with it)
+      // This is typically a response to "what do you do now?" or similar
+      if (/nothing|ignore|forget|don't|spreadsheet|calendar|reminder|app|manually|try to/i.test(message) && 
+          existingPain.description && !existingPain.currentSolution) {
+        existingPain.currentSolution = originalMessage;
+      }
+      
+      // Track if user explicitly says they're ready for ideas
+      if (/ready|show me|give me ideas|what ideas|generate/i.test(message)) {
+        existingPain.readyForIdeas = true;
+      }
+      
       // Store initial pain description if not already stored and response is substantial
       if (!existingPain.description && words.length >= 5) {
         existingPain.description = originalMessage;
@@ -227,7 +239,7 @@ export class OnboardingAgent extends BaseAgent {
 
   /**
    * Check if onboarding is complete
-   * Need name, pain point, AND at least one follow-up answered
+   * Need name, pain point, AND sufficient depth (multiple follow-ups answered)
    */
   async isComplete(sessionId) {
     const userProfile = await this.getMemory(sessionId, 'USER_PROFILE');
@@ -242,21 +254,28 @@ export class OnboardingAgent extends BaseAgent {
       return false;
     }
 
-    // Description should be at least 10 characters
-    if (userPain.description.length < 10) {
+    // Description should be at least 20 characters (more substantial)
+    if (userPain.description.length < 20) {
       console.log('[isComplete] Description too short, returning false');
       return false;
     }
 
-    // Need at least one depth indicator (frequency, severity, etc.)
-    // This ensures we've had at least one follow-up exchange
-    const hasDepth = userPain.frequency || 
-                     userPain.severity || 
-                     userPain.affectsOthers || 
-                     userPain.willingnessSignal;
+    // Count depth indicators - need at least 2 for completion
+    // This ensures we've had meaningful follow-up exchanges
+    let depthScore = 0;
+    if (userPain.frequency && userPain.frequency !== 'unknown') depthScore++;
+    if (userPain.severity) depthScore++;
+    if (userPain.currentSolution) depthScore++;  // What they do now
+    if (userPain.willingnessSignal) depthScore++;
+    // affectsOthers alone shouldn't count - it's often inferred from keywords
+    if (userPain.affectsOthers && depthScore > 0) depthScore++;
     
-    console.log('[isComplete] hasDepth:', hasDepth, '- returning', !!hasDepth);
-    return !!hasDepth;
+    // Also check if we have explicit confirmation the user is ready
+    if (userPain.readyForIdeas) depthScore += 2;
+    
+    const isComplete = depthScore >= 2;
+    console.log('[isComplete] depthScore:', depthScore, '- returning', isComplete);
+    return isComplete;
   }
 
   /**
