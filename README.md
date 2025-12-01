@@ -308,6 +308,11 @@ npm run build
 # - Render
 ```
 
+### Current Hosting Status
+
+- **Backend**: Deployed on Render (auto-deploy from `main`)
+- **Frontend**: Pending deployment to Vercel (needs static build setup)
+
 ## Future Enhancements
 
 - [ ] WhatsApp integration
