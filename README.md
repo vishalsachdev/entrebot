@@ -22,13 +22,21 @@ src/
 │   ├── base.js      # Base agent class
 │   ├── onboarding.js
 │   ├── idea-generator.js
-│   └── validator.js
+│   ├── validator.js
+│   ├── builder.js   # PRD and builder prompt generation
+│   └── index.js     # Agent registry
+├── orchestrator/    # Agent orchestration and flow control
+│   └── index.js
 ├── services/        # External service integrations
-│   ├── anthropic.js
+│   ├── openai.js    # OpenAI API integration
 │   └── whatsapp.js
 ├── routes/          # API endpoints
 │   ├── chat.js
-│   └── users.js
+│   ├── conversations.js
+│   ├── memory.js
+│   ├── sessions.js
+│   ├── users.js
+│   └── index.js
 ├── middleware/      # Express middleware
 │   ├── auth.js
 │   ├── error.js
@@ -43,7 +51,7 @@ src/
 
 - Node.js >= 18.0.0
 - Supabase account
-- OpenAI API key
+- OpenAI API key (GPT-4)
 
 ### Installation
 
@@ -55,7 +63,7 @@ npm install
 cp .env.example .env
 
 # Edit .env with your credentials
-# SUPABASE_URL, SUPABASE_ANON_KEY, ANTHROPIC_API_KEY
+# SUPABASE_URL, SUPABASE_ANON_KEY, OPENAI_API_KEY
 ```
 
 ### Database Setup
@@ -123,6 +131,12 @@ POST /api/chat/select-idea        # Select idea for validation
 - Provides data-driven recommendations
 - Stores validation results
 
+### 4. Builder Agent
+- Generates comprehensive PRD documents
+- Creates user stories and acceptance criteria
+- Produces builder prompts for implementation
+- Stores PRD and builder artifacts in memory
+
 ## Environment Variables
 
 ```env
@@ -135,9 +149,12 @@ SUPABASE_URL=your_url
 SUPABASE_ANON_KEY=your_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_key
 
-# Anthropic
-ANTHROPIC_API_KEY=your_key
-ANTHROPIC_MODEL=claude-3-5-haiku-20241022
+# OpenAI
+OPENAI_API_KEY=your_key
+OPENAI_MODEL=gpt-4
+
+# WhatsApp (optional)
+WHATSAPP_SESSION_PATH=./whatsapp_session
 
 # Security
 JWT_SECRET=your_secret
@@ -145,6 +162,9 @@ JWT_SECRET=your_secret
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
+
+# Logging
+LOG_LEVEL=info
 ```
 
 ## Memory System
@@ -251,7 +271,7 @@ See `frontend/README.md` for detailed frontend documentation.
 
 ### Security Best Practices
 - Copy `.env.example` → `.env`; never commit secrets
-- Required envs: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `OPENAI_API_KEY`
+- Required envs: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`
 - Enable Supabase RLS in production (see notes in `schema.sql`)
 - Don't log sensitive data; use `logger` with appropriate levels
 - Environment variables validated at startup
@@ -313,10 +333,10 @@ npm run build
    - Check if database schema is created
    - Ensure network connectivity
 
-3. **Anthropic API errors**
+3. **OpenAI API errors**
    - Verify API key is valid
    - Check API rate limits
-   - Ensure model name is correct
+   - Ensure model name is correct (default: gpt-4)
 
 ## License
 
