@@ -6,7 +6,7 @@
 import express from 'express';
 import { asyncHandler } from '../middleware/error.js';
 import { validateBody, schemas } from '../middleware/validation.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, optionalAuth } from '../middleware/auth.js';
 import { conversationQueries, sessionQueries, memoryQueries } from '../database/queries.js';
 import { getAgent } from '../agents/index.js';
 import { orchestrator, PHASES } from '../orchestrator/index.js';
@@ -72,7 +72,7 @@ router.get(
  */
 router.post(
   '/message',
-  authenticate,
+  optionalAuth,
   validateBody(schemas.sendMessage),
   asyncHandler(async (req, res) => {
     const { userId } = req;
@@ -209,7 +209,7 @@ router.post(
  */
 router.post(
   '/stream',
-  authenticate,
+  optionalAuth,
   validateBody(schemas.sendMessage),
   asyncHandler(async (req, res) => {
     const { userId } = req;
