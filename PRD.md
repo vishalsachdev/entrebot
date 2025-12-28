@@ -1,8 +1,8 @@
 # VentureBot Product Requirements Document (PRD)
 
-**Version:** 2.0
-**Date:** October 2025
-**Status:** Complete Vision (Implementation-Agnostic)
+**Version:** 2.1
+**Date:** December 2025
+**Status:** Complete Vision with Implementation Notes
 
 ---
 
@@ -72,6 +72,11 @@ Enable students and aspiring entrepreneurs to:
 - User understands "idea as key, pain as lock" metaphor
 - System captures enough context for personalized idea generation
 
+**Implementation Notes (v2.1):**
+- Reflection flow ensures user explores the "real reason" behind their pain before transitioning
+- Uses explicit state flags (`reflectionAsked`, `reflectionReceived`) to track multi-turn exchanges
+- Learning objectives displayed to user: "Articulate a specific problem", "Identify who experiences it", "Understand emotional drivers"
+
 ---
 
 ### Phase 2: Ideation & Concept Development
@@ -89,6 +94,11 @@ Enable students and aspiring entrepreneurs to:
 - Ideas are feasible for solopreneur execution
 - User feels excited about at least one concept
 - System captures user's entrepreneurial preferences
+
+**Implementation Notes (v2.1):**
+- IdeaCard component displays each idea with visual structure (icon, title, concept tag, description)
+- IdeaCardGrid provides responsive grid layout for browsing ideas
+- Learning objectives: "Understand business model concepts", "Evaluate feasibility vs. innovation", "Make informed selections"
 
 ---
 
@@ -1204,6 +1214,12 @@ Overall = (Market Opportunity × 0.30) +
 **Version History:**
 - v1.0 (Jan 2025): Initial MVP implementation (pain → idea → validation → PRD → prompt)
 - v2.0 (Jan 2025): Complete vision PRD (implementation-agnostic)
+- v2.1 (Dec 2025): Implementation updates
+  - Database migration infrastructure for schema management
+  - Enhanced onboarding reflection flow (waits for deeper pain exploration before ideation)
+  - Learning objectives displayed for each journey phase
+  - Structured idea card components for visual idea presentation
+  - Project-session integration (sessions linked to projects via `project_id`)
 
 **Reviewers:**
 - Product Lead
