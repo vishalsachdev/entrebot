@@ -4,7 +4,7 @@ import { Send, Loader2, Bot, User as UserIcon, Square } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { useStreamingChat } from '../../hooks/useStreamingChat';
-import { Button, Textarea, Card, MarkdownRenderer } from '../ui';
+import { Button, Textarea, Card, MarkdownRenderer, Celebration } from '../ui';
 import { cn } from '../../utils/cn';
 import type { Message } from '../../types';
 
@@ -96,9 +96,14 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
     null
   );
   const [streamingContent, setStreamingContent] = useState<string>('');
+  const [celebration, setCelebration] = useState<{
+    show: boolean;
+    milestone: string;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hasAutoStarted = useRef(false);
+  const prevMilestonesRef = useRef<string[]>([]);
 
   // Auto-start with Onboarding agent on first visit
   useEffect(() => {
@@ -260,6 +265,33 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
   useEffect(() => {
     scrollToBottom();
   }, [messages, streamingContent]);
+
+  // Detect new milestones and trigger celebration
+  useEffect(() => {
+    if (!progress?.milestones) return;
+
+    const currentMilestones = progress.milestones;
+    const previousMilestones = prevMilestonesRef.current;
+
+    // Find new milestones that weren't in the previous list
+    const newMilestones = currentMilestones.filter(
+      milestone => !previousMilestones.includes(milestone)
+    );
+
+    // Trigger celebration for the first new milestone
+    if (newMilestones.length > 0 && previousMilestones.length > 0) {
+      // Only celebrate if we had previous milestones (not initial load)
+      setCelebration({ show: true, milestone: newMilestones[0] });
+    }
+
+    // Update the ref with current milestones
+    prevMilestonesRef.current = currentMilestones;
+  }, [progress?.milestones]);
+
+  // Handle celebration completion
+  const handleCelebrationComplete = useCallback(() => {
+    setCelebration(null);
+  }, []);
 
   // Create a session if we don't have one
   const ensureSession = useCallback(async (): Promise<string> => {
@@ -498,6 +530,13 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
+      {/* Milestone Celebration */}
+      <Celebration
+        show={celebration?.show ?? false}
+        milestone={celebration?.milestone ?? ''}
+        onComplete={handleCelebrationComplete}
+      />
+
       {/* Journey Progress - 7 Phases with Progress Bar */}
       <div className="border-b border-neutral-200 px-4 py-3 bg-gradient-to-r from-primary-50 to-white">
         {/* Progress Bar */}

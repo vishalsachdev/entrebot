@@ -51,3 +51,6 @@ export type {
 } from './Layout';
 
 export { default as MarkdownRenderer } from './MarkdownRenderer';
+
+export { default as Celebration } from './Celebration';
+export type { default as CelebrationProps } from './Celebration';
