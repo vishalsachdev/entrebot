@@ -355,7 +355,8 @@ router.get(
       name: phase.name,
       description: phase.description,
       agents: phase.agents,
-      milestones: phase.milestones
+      milestones: phase.milestones,
+      learningObjectives: phase.learningObjectives || []
     }));
 
     res.json({

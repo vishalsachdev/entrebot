@@ -22,49 +22,91 @@ export const PHASES = {
     description: 'Understand yourself and identify problems worth solving',
     agents: ['onboarding'],
     milestones: ['name_collected', 'pain_articulated', 'pain_validated'],
-    nextPhase: 'ideation'
+    nextPhase: 'ideation',
+    learningObjectives: [
+      'Identify frustrations that affect you and others',
+      'Understand the frequency and severity of problems',
+      'Recognize the emotional drivers behind pain points',
+      'Articulate problems clearly and specifically'
+    ]
   },
   ideation: {
     name: 'Ideation',
     description: 'Generate and explore business ideas',
     agents: ['ideaGenerator'],
     milestones: ['ideas_generated', 'idea_selected'],
-    nextPhase: 'validation'
+    nextPhase: 'validation',
+    learningObjectives: [
+      'Generate multiple solution approaches to a problem',
+      'Evaluate ideas based on feasibility and differentiation',
+      'Match solutions to appropriate tools and platforms',
+      'Select the most promising idea to pursue'
+    ]
   },
   validation: {
     name: 'Validation',
     description: 'Validate your idea with market research',
     agents: ['validator'],
     milestones: ['validation_complete', 'decision_made'],
-    nextPhase: 'strategy'
+    nextPhase: 'strategy',
+    learningObjectives: [
+      'Assess market demand and competition',
+      'Identify your riskiest assumptions',
+      'Design quick validation experiments',
+      'Make data-informed go/no-go decisions'
+    ]
   },
   strategy: {
     name: 'Strategy',
     description: 'Create your product strategy and PRD',
     agents: ['builder'],
     milestones: ['prd_created', 'mvp_scoped'],
-    nextPhase: 'building'
+    nextPhase: 'building',
+    learningObjectives: [
+      'Define core features vs nice-to-haves',
+      'Write clear product requirements',
+      'Scope an MVP that can be built quickly',
+      'Prioritize features by impact and effort'
+    ]
   },
   building: {
     name: 'Building',
     description: 'Build your MVP with AI tools',
     agents: ['builder'],
     milestones: ['prompts_generated', 'mvp_started', 'mvp_complete'],
-    nextPhase: 'launch'
+    nextPhase: 'launch',
+    learningObjectives: [
+      'Use AI coding tools effectively (Bolt, Cursor, v0)',
+      'Write effective prompts for code generation',
+      'Build a functional MVP in days, not months',
+      'Iterate quickly based on what works'
+    ]
   },
   launch: {
     name: 'Launch',
     description: 'Prepare and execute your launch',
     agents: ['builder'], // Will be replaced with GTM agent
     milestones: ['launch_plan_created', 'launched'],
-    nextPhase: 'growth'
+    nextPhase: 'growth',
+    learningObjectives: [
+      'Create a compelling launch narrative',
+      'Identify your initial target audience',
+      'Choose appropriate launch channels',
+      'Set up basic analytics and feedback loops'
+    ]
   },
   growth: {
     name: 'Growth',
     description: 'Grow and iterate on your product',
     agents: ['builder'], // Will be replaced with Growth agent
     milestones: ['first_user', 'first_feedback', 'iteration_complete'],
-    nextPhase: null
+    nextPhase: null,
+    learningObjectives: [
+      'Gather and analyze user feedback',
+      'Identify patterns in user behavior',
+      'Prioritize improvements based on impact',
+      'Build sustainable growth habits'
+    ]
   }
 };
 

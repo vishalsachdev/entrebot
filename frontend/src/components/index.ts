@@ -3,3 +3,8 @@ export { default as UserProfile } from './UserProfile';
 export { default as ConversationView } from './ConversationView';
 export { default as SessionList } from './SessionList';
 export { default as MemoryViewer } from './MemoryViewer';
+
+// Re-export subfolders
+export * from './ideas';
+export * from './coaching';
+export * from './validation';
