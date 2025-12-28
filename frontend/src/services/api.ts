@@ -13,6 +13,7 @@
 
 import type {
   DbUser,
+  DbProject,
   DbSession,
   DbConversation,
   DbMemory,
@@ -26,7 +27,8 @@ import type {
 // Configuration
 // ============================================================================
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second base delay
@@ -200,7 +202,8 @@ class ApiClient {
       }
 
       throw {
-        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        message:
+          error instanceof Error ? error.message : 'Unknown error occurred',
         details: error,
       } as ApiError;
     }
@@ -418,7 +421,7 @@ export const sessionService = {
    */
   async createSession(
     userId: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<DbSession> {
     const response = await apiClient.post<ApiResponse<DbSession>>('/sessions', {
       user_id: userId,
@@ -453,10 +456,7 @@ export const sessionService = {
    * @example
    * const sessions = await sessionService.getUserSessions('user-123', 20);
    */
-  async getUserSessions(
-    userId: string,
-    limit = 50
-  ): Promise<DbSession[]> {
+  async getUserSessions(userId: string, limit = 50): Promise<DbSession[]> {
     const response = await apiClient.get<ApiResponse<DbSession[]>>(
       `/users/${userId}/sessions?limit=${limit}`
     );
@@ -478,7 +478,7 @@ export const sessionService = {
    */
   async updateSession(
     sessionId: string,
-    metadata: Record<string, any>
+    metadata: Record<string, unknown>
   ): Promise<DbSession> {
     const response = await apiClient.patch<ApiResponse<DbSession>>(
       `/sessions/${sessionId}`,
@@ -519,11 +519,13 @@ export const sessionService = {
     messages?: DbConversation[];
     memory?: DbMemory[];
   }> {
-    const response = await apiClient.get<ApiResponse<{
-      session: DbSession;
-      messages?: DbConversation[];
-      memory?: DbMemory[];
-    }>>(
+    const response = await apiClient.get<
+      ApiResponse<{
+        session: DbSession;
+        messages?: DbConversation[];
+        memory?: DbMemory[];
+      }>
+    >(
       `/sessions/${sessionId}/full?messages=${includeMessages}&memory=${includeMemory}`
     );
     return response.data;
@@ -559,7 +561,7 @@ export const conversationService = {
     sessionId: string,
     role: 'user' | 'assistant' | 'system',
     content: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<DbConversation> {
     const response = await apiClient.post<ApiResponse<DbConversation>>(
       '/conversations',
@@ -615,11 +617,13 @@ export const conversationService = {
     last: DbConversation[];
     total: number;
   }> {
-    const response = await apiClient.get<ApiResponse<{
-      first: DbConversation[];
-      last: DbConversation[];
-      total: number;
-    }>>(
+    const response = await apiClient.get<
+      ApiResponse<{
+        first: DbConversation[];
+        last: DbConversation[];
+        total: number;
+      }>
+    >(
       `/sessions/${sessionId}/conversations/summary?first=${firstN}&last=${lastN}`
     );
     return response.data;
@@ -656,7 +660,7 @@ export const conversationService = {
    */
   async updateMessage(
     messageId: string,
-    updates: { content?: string; metadata?: Record<string, any> }
+    updates: { content?: string; metadata?: Record<string, unknown> }
   ): Promise<DbConversation> {
     const response = await apiClient.patch<ApiResponse<DbConversation>>(
       `/conversations/${messageId}`,
@@ -725,7 +729,7 @@ export const memoryService = {
   async setMemory(
     sessionId: string,
     key: string,
-    value: any
+    value: unknown
   ): Promise<DbMemory> {
     const response = await apiClient.post<ApiResponse<DbMemory>>('/memory', {
       session_id: sessionId,
@@ -745,7 +749,7 @@ export const memoryService = {
    * @example
    * const preferences = await memoryService.getMemory('session-123', 'user_preferences');
    */
-  async getMemory(sessionId: string, key: string): Promise<any | null> {
+  async getMemory(sessionId: string, key: string): Promise<unknown | null> {
     try {
       const response = await apiClient.get<ApiResponse<DbMemory>>(
         `/sessions/${sessionId}/memory/${encodeURIComponent(key)}`
@@ -769,16 +773,19 @@ export const memoryService = {
    * const allMemory = await memoryService.getAllMemory('session-123');
    * // Returns: { user_preferences: {...}, journey_state: {...}, ... }
    */
-  async getAllMemory(sessionId: string): Promise<Record<string, any>> {
+  async getAllMemory(sessionId: string): Promise<Record<string, unknown>> {
     const response = await apiClient.get<ApiResponse<DbMemory[]>>(
       `/sessions/${sessionId}/memory`
     );
 
     // Convert array of memory objects to key-value object
-    return response.data.reduce((acc, memory) => {
-      acc[memory.key] = memory.value;
-      return acc;
-    }, {} as Record<string, any>);
+    return response.data.reduce(
+      (acc, memory) => {
+        acc[memory.key] = memory.value;
+        return acc;
+      },
+      {} as Record<string, unknown>
+    );
   },
 
   /**
@@ -791,7 +798,10 @@ export const memoryService = {
    * @example
    * const memoryObj = await memoryService.getMemoryObject('session-123', 'user_preferences');
    */
-  async getMemoryObject(sessionId: string, key: string): Promise<DbMemory | null> {
+  async getMemoryObject(
+    sessionId: string,
+    key: string
+  ): Promise<DbMemory | null> {
     try {
       const response = await apiClient.get<ApiResponse<DbMemory>>(
         `/sessions/${sessionId}/memory/${encodeURIComponent(key)}`
@@ -819,7 +829,7 @@ export const memoryService = {
   async updateMemory(
     sessionId: string,
     key: string,
-    value: any
+    value: unknown
   ): Promise<DbMemory> {
     const response = await apiClient.patch<ApiResponse<DbMemory>>(
       `/sessions/${sessionId}/memory/${encodeURIComponent(key)}`,
@@ -852,9 +862,7 @@ export const memoryService = {
    * await memoryService.clearMemory('session-123');
    */
   async clearMemory(sessionId: string): Promise<void> {
-    await apiClient.delete<ApiResponse<void>>(
-      `/sessions/${sessionId}/memory`
-    );
+    await apiClient.delete<ApiResponse<void>>(`/sessions/${sessionId}/memory`);
   },
 
   /**
@@ -873,7 +881,7 @@ export const memoryService = {
    */
   async setMultipleMemory(
     sessionId: string,
-    data: Record<string, any>
+    data: Record<string, unknown>
   ): Promise<DbMemory[]> {
     const response = await apiClient.post<ApiResponse<DbMemory[]>>(
       '/memory/batch',
@@ -887,15 +895,354 @@ export const memoryService = {
 };
 
 // ============================================================================
+// Project Service
+// ============================================================================
+
+/**
+ * Project API service for managing user projects
+ */
+export const projectService = {
+  /**
+   * Create a new project
+   * @param userId - User ID
+   * @param name - Project name
+   * @param description - Optional project description
+   * @returns Created project object
+   * @throws {ApiError} When creation fails
+   *
+   * @example
+   * const project = await projectService.createProject('user-123', 'My Startup', 'A cool idea');
+   */
+  async createProject(
+    userId: string,
+    name: string,
+    description?: string
+  ): Promise<DbProject> {
+    const response = await apiClient.post<ApiResponse<DbProject>>(
+      '/v1/projects',
+      {
+        userId,
+        name,
+        description: description || null,
+      }
+    );
+    return response.data;
+  },
+
+  /**
+   * Get all projects for a user
+   * @param userId - User ID
+   * @returns Array of projects, ordered by most recent first
+   * @throws {ApiError} When request fails
+   *
+   * @example
+   * const projects = await projectService.getUserProjects('user-123');
+   */
+  async getUserProjects(userId: string): Promise<DbProject[]> {
+    const response = await apiClient.get<ApiResponse<DbProject[]>>(
+      `/v1/projects?userId=${encodeURIComponent(userId)}`
+    );
+    return response.data;
+  },
+
+  /**
+   * Get project by ID
+   * @param projectId - Project ID
+   * @returns Project object with related sessions
+   * @throws {ApiError} When project not found or request fails
+   *
+   * @example
+   * const project = await projectService.getProject('project-123');
+   */
+  async getProject(
+    projectId: string
+  ): Promise<DbProject & { sessions?: DbSession[] }> {
+    const response = await apiClient.get<
+      ApiResponse<DbProject & { sessions?: DbSession[] }>
+    >(`/v1/projects/${projectId}`);
+    return response.data;
+  },
+
+  /**
+   * Update project
+   * @param projectId - Project ID
+   * @param updates - Fields to update
+   * @returns Updated project object
+   * @throws {ApiError} When update fails
+   *
+   * @example
+   * const project = await projectService.updateProject('project-123', {
+   *   name: 'New Name',
+   *   status: 'building'
+   * });
+   */
+  async updateProject(
+    projectId: string,
+    updates: {
+      name?: string;
+      description?: string;
+      status?: DbProject['status'];
+    }
+  ): Promise<DbProject> {
+    const response = await apiClient.put<ApiResponse<DbProject>>(
+      `/v1/projects/${projectId}`,
+      updates
+    );
+    return response.data;
+  },
+
+  /**
+   * Delete project
+   * @param projectId - Project ID
+   * @throws {ApiError} When deletion fails
+   *
+   * @example
+   * await projectService.deleteProject('project-123');
+   */
+  async deleteProject(projectId: string): Promise<void> {
+    await apiClient.delete<ApiResponse<{ id: string; deleted: boolean }>>(
+      `/v1/projects/${projectId}`
+    );
+  },
+
+  /**
+   * Get sessions for a project
+   * @param projectId - Project ID
+   * @returns Array of sessions for this project
+   * @throws {ApiError} When request fails
+   *
+   * @example
+   * const sessions = await projectService.getProjectSessions('project-123');
+   */
+  async getProjectSessions(projectId: string): Promise<DbSession[]> {
+    const response = await apiClient.get<ApiResponse<DbSession[]>>(
+      `/v1/projects/${projectId}/sessions`
+    );
+    return response.data;
+  },
+};
+
+// ============================================================================
+// Chat Service (Streaming)
+// ============================================================================
+
+/**
+ * SSE chunk data format from backend
+ */
+interface StreamChunk {
+  chunk?: string;
+  agent?: string;
+  done?: boolean;
+  error?: string;
+}
+
+/**
+ * Chat streaming options
+ */
+interface StreamChatOptions {
+  sessionId: string;
+  message: string;
+  agent: string;
+  onChunk: (chunk: string, fullContent: string) => void;
+  onComplete?: (fullContent: string, agent: string) => void;
+  onError?: (error: string) => void;
+  signal?: AbortSignal;
+}
+
+/**
+ * Chat API service for streaming responses
+ */
+export const chatService = {
+  /**
+   * Stream a chat message with SSE
+   * @param options - Streaming options including callbacks
+   * @returns Promise resolving to the full response content
+   * @throws {ApiError} When stream fails
+   *
+   * @example
+   * const content = await chatService.streamChat({
+   *   sessionId: 'session-123',
+   *   message: 'Hello',
+   *   agent: 'onboarding',
+   *   onChunk: (chunk, full) => setContent(full),
+   *   onComplete: (content, agent) => console.log('Done'),
+   *   onError: (err) => console.error(err)
+   * });
+   */
+  async streamChat({
+    sessionId,
+    message,
+    agent,
+    onChunk,
+    onComplete,
+    onError,
+    signal,
+  }: StreamChatOptions): Promise<string> {
+    let fullContent = '';
+    let responseAgent = agent;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId,
+          message,
+          agent,
+        }),
+        signal,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Stream request failed: ${response.status} ${errorText}`
+        );
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Response body is not readable');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6);
+
+            try {
+              const data: StreamChunk = JSON.parse(dataStr);
+
+              if (data.error) {
+                onError?.(data.error);
+                reader.cancel();
+                return fullContent;
+              }
+
+              if (data.done) {
+                onComplete?.(fullContent, responseAgent);
+                return fullContent;
+              }
+
+              if (data.chunk) {
+                fullContent += data.chunk;
+                if (data.agent) {
+                  responseAgent = data.agent;
+                }
+                onChunk(data.chunk, fullContent);
+              }
+            } catch {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+
+      // Process remaining buffer
+      if (buffer.trim() && buffer.startsWith('data: ')) {
+        try {
+          const data: StreamChunk = JSON.parse(buffer.slice(6));
+          if (data.chunk) {
+            fullContent += data.chunk;
+            onChunk(data.chunk, fullContent);
+          }
+          if (data.done) {
+            onComplete?.(fullContent, responseAgent);
+          }
+        } catch {
+          // Ignore
+        }
+      }
+
+      onComplete?.(fullContent, responseAgent);
+      return fullContent;
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return fullContent;
+      }
+
+      const errorMessage = err instanceof Error ? err.message : 'Stream failed';
+      onError?.(errorMessage);
+      throw err;
+    }
+  },
+
+  /**
+   * Send a non-streaming chat message
+   * @param sessionId - Session ID
+   * @param message - User message
+   * @param agent - Agent name
+   * @returns Promise with chat response
+   * @throws {ApiError} When request fails
+   *
+   * @example
+   * const result = await chatService.sendMessage('session-123', 'Hello', 'onboarding');
+   */
+  async sendMessage(
+    sessionId: string,
+    message: string,
+    agent: string
+  ): Promise<{
+    success: boolean;
+    response: string;
+    phase?: string;
+    phaseChanged?: boolean;
+    onboardingComplete?: boolean;
+    ideaSelected?: boolean;
+    backToIdeas?: boolean;
+    proceedToBuild?: boolean;
+    progress?: Record<string, unknown>;
+    agent?: string;
+  }> {
+    const response = await apiClient.post<{
+      success: boolean;
+      response: string;
+      phase?: string;
+      phaseChanged?: boolean;
+      onboardingComplete?: boolean;
+      ideaSelected?: boolean;
+      backToIdeas?: boolean;
+      proceedToBuild?: boolean;
+      progress?: Record<string, unknown>;
+      agent?: string;
+    }>('/chat/message', {
+      sessionId,
+      message,
+      agent,
+    });
+    return response;
+  },
+};
+
+// ============================================================================
 // Exports
 // ============================================================================
 
 export default {
   apiClient,
   userService,
+  projectService,
   sessionService,
   conversationService,
   memoryService,
+  chatService,
 };
 
 export type { ApiError };

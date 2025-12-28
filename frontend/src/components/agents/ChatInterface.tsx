@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Loader2, Bot, User as UserIcon } from 'lucide-react';
+import { Send, Loader2, Bot, User as UserIcon, Square } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
-import { Button, Textarea, Card } from '../ui';
+import { useProject } from '../../contexts/ProjectContext';
+import { useStreamingChat } from '../../hooks/useStreamingChat';
+import { Button, Textarea, Card, MarkdownRenderer } from '../ui';
 import { cn } from '../../utils/cn';
 import type { Message } from '../../types';
 
@@ -10,11 +12,11 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Map frontend agent IDs to backend agent names
 const agentIdToBackendName: Record<string, string> = {
-  'onboarding': 'onboarding',
+  onboarding: 'onboarding',
   'idea-generator': 'ideaGenerator',
-  'validator': 'validator',
-  'builder': 'builder',
-  'strategist': 'onboarding',
+  validator: 'validator',
+  builder: 'builder',
+  strategist: 'onboarding',
   'growth-advisor': 'onboarding',
 };
 
@@ -24,13 +26,43 @@ interface ChatInterfaceProps {
 
 // Phase configuration matching backend orchestrator
 const PHASES = [
-  { id: 'discovery', label: 'Discover', icon: '🔍', description: 'Find your pain point' },
-  { id: 'ideation', label: 'Ideate', icon: '💡', description: 'Generate solutions' },
-  { id: 'validation', label: 'Validate', icon: '✓', description: 'Test assumptions' },
-  { id: 'strategy', label: 'Strategy', icon: '📋', description: 'Plan your product' },
-  { id: 'building', label: 'Build', icon: '🔨', description: 'Create your MVP' },
+  {
+    id: 'discovery',
+    label: 'Discover',
+    icon: '🔍',
+    description: 'Find your pain point',
+  },
+  {
+    id: 'ideation',
+    label: 'Ideate',
+    icon: '💡',
+    description: 'Generate solutions',
+  },
+  {
+    id: 'validation',
+    label: 'Validate',
+    icon: '✓',
+    description: 'Test assumptions',
+  },
+  {
+    id: 'strategy',
+    label: 'Strategy',
+    icon: '📋',
+    description: 'Plan your product',
+  },
+  {
+    id: 'building',
+    label: 'Build',
+    icon: '🔨',
+    description: 'Create your MVP',
+  },
   { id: 'launch', label: 'Launch', icon: '🚀', description: 'Go to market' },
-  { id: 'growth', label: 'Grow', icon: '📈', description: 'Scale your business' },
+  {
+    id: 'growth',
+    label: 'Grow',
+    icon: '📈',
+    description: 'Scale your business',
+  },
 ];
 
 interface Progress {
@@ -52,12 +84,18 @@ interface Progress {
 
 const ChatInterface = ({ className }: ChatInterfaceProps) => {
   const { currentAgent, switchAgent } = useAgent();
+  const { currentProject } = useProject();
+  const { streamMessage, isStreaming, abortStream } = useStreamingChat();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(
+    null
+  );
+  const [streamingContent, setStreamingContent] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hasAutoStarted = useRef(false);
@@ -84,55 +122,75 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
       // Check for existing session in localStorage
       const savedSessionId = localStorage.getItem('venturebot_session_id');
       console.log('Checking for saved session:', savedSessionId);
-      
+
       if (savedSessionId) {
         setSessionId(savedSessionId);
         try {
           // Load conversation history and progress in parallel
           const [historyResponse, progressResponse] = await Promise.all([
             fetch(`${API_BASE_URL}/chat/history/${savedSessionId}`),
-            fetch(`${API_BASE_URL}/chat/progress/${savedSessionId}`)
+            fetch(`${API_BASE_URL}/chat/progress/${savedSessionId}`),
           ]);
-          
+
           const historyData = await historyResponse.json();
           const progressData = await progressResponse.json();
-          
+
           console.log('History response:', historyData);
           console.log('Progress response:', progressData);
-          
+
           // Load messages
-          if (historyData.success && historyData.messages && historyData.messages.length > 0) {
-            const loadedMessages: Message[] = historyData.messages.map((msg: any) => ({
-              id: msg.id,
-              role: msg.role,
-              content: msg.content,
-              agentId: msg.metadata?.agent || 'onboarding',
-              timestamp: new Date(msg.created_at),
-              status: 'delivered',
-            }));
-            
+          if (
+            historyData.success &&
+            historyData.messages &&
+            historyData.messages.length > 0
+          ) {
+            interface HistoryMessage {
+              id: string;
+              role: 'user' | 'assistant' | 'system';
+              content: string;
+              metadata?: { agent?: string };
+              created_at: string;
+            }
+            const loadedMessages: Message[] = historyData.messages.map(
+              (msg: HistoryMessage) => ({
+                id: msg.id,
+                role: msg.role,
+                content: msg.content,
+                agentId: msg.metadata?.agent || 'onboarding',
+                timestamp: new Date(msg.created_at),
+                status: 'delivered',
+              })
+            );
+
             // Prepend greeting if first message is from user (greeting wasn't stored)
             if (loadedMessages[0]?.role === 'user') {
-              const greeting = "Hey there! I'm VentureBot, your entrepreneurship coach. I'm here to help you discover a real problem worth solving and turn it into a business idea. Think of me as your thinking partner - I'll ask questions to help you dig deep and find something meaningful. Let's start simple: what's your name?";
+              const greeting =
+                "Hi! I'm VentureBot, your entrepreneurship coach. I'll help you turn everyday frustrations into real business ideas. Let's discover what problems you're passionate about solving. What's your name?";
               loadedMessages.unshift({
                 id: `msg-greeting-restored`,
                 role: 'assistant',
                 content: greeting,
                 agentId: 'onboarding',
-                timestamp: new Date(new Date(loadedMessages[0].timestamp).getTime() - 1000),
+                timestamp: new Date(
+                  new Date(loadedMessages[0].timestamp).getTime() - 1000
+                ),
                 status: 'delivered',
               });
             }
-            
+
             setMessages(loadedMessages);
             hasGreeted.current = true; // Don't show greeting if we have history
-            console.log(`Loaded ${loadedMessages.length} messages from history`);
+            console.log(
+              `Loaded ${loadedMessages.length} messages from history`
+            );
           }
-          
+
           // Load progress
           if (progressData.success) {
             setProgress(progressData);
-            console.log(`Loaded progress: phase=${progressData.currentPhase}, ${progressData.milestones?.length || 0} milestones`);
+            console.log(
+              `Loaded progress: phase=${progressData.currentPhase}, ${progressData.milestones?.length || 0} milestones`
+            );
           }
         } catch (err) {
           console.error('Failed to load history:', err);
@@ -148,9 +206,15 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
   // Wait for history loading to complete first
   useEffect(() => {
     if (isLoadingHistory) return; // Wait for history check to complete
-    if (currentAgent?.id === 'onboarding' && messages.length === 0 && !isTyping && !hasGreeted.current) {
+    if (
+      currentAgent?.id === 'onboarding' &&
+      messages.length === 0 &&
+      !isTyping &&
+      !hasGreeted.current
+    ) {
       hasGreeted.current = true;
-      const greeting = "Hey there! I'm VentureBot, your entrepreneurship coach. I'm here to help you discover a real problem worth solving and turn it into a business idea. Think of me as your thinking partner - I'll ask questions to help you dig deep and find something meaningful. Let's start simple: what's your name?";
+      const greeting =
+        "Hi! I'm VentureBot, your entrepreneurship coach. I'll help you turn everyday frustrations into real business ideas. Let's discover what problems you're passionate about solving. What's your name?";
       const greetingMessage: Message = {
         id: `msg-greeting-${Date.now()}`,
         role: 'assistant',
@@ -161,7 +225,7 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
       };
       setMessages([greetingMessage]);
       setTimeout(() => inputRef.current?.focus(), 100);
-      
+
       // Store greeting in database so backend knows about it
       (async () => {
         try {
@@ -173,7 +237,7 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
               sessionId: sid,
               role: 'assistant',
               content: greeting,
-              metadata: { agent: 'Onboarding', isGreeting: true }
+              metadata: { agent: 'Onboarding', isGreeting: true },
             }),
           });
         } catch (err) {
@@ -181,7 +245,13 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
         }
       })();
     }
-  }, [currentAgent, messages.length, isTyping, isLoadingHistory]);
+  }, [
+    currentAgent,
+    messages.length,
+    isTyping,
+    isLoadingHistory,
+    ensureSession,
+  ]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -189,16 +259,16 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, streamingContent]);
 
   // Create a session if we don't have one
-  const ensureSession = async (): Promise<string> => {
+  const ensureSession = useCallback(async (): Promise<string> => {
     if (sessionId) return sessionId;
 
     try {
       // Get user email from localStorage or use demo
-      const userEmail = localStorage.getItem('user') 
-        ? JSON.parse(localStorage.getItem('user')!).email 
+      const userEmail = localStorage.getItem('user')
+        ? JSON.parse(localStorage.getItem('user')!).email
         : 'demo@example.com';
       const userName = localStorage.getItem('user')
         ? JSON.parse(localStorage.getItem('user')!).name
@@ -211,7 +281,7 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
         body: JSON.stringify({ email: userEmail, name: userName }),
       });
       const userData = await userResponse.json();
-      
+
       // Get user ID from response (new user) or error means user exists
       let userId: string;
       if (userData.success && userData.data?.id) {
@@ -222,13 +292,14 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
         userId = userEmail;
       }
 
-      // Create a session with the user ID
+      // Create a session with the user ID and current project
       const response = await fetch(`${API_BASE_URL}/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           userId: userId,
-          metadata: { agent: currentAgent?.id }
+          projectId: currentProject?.id || null,
+          metadata: { agent: currentAgent?.id },
         }),
       });
 
@@ -246,10 +317,13 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
       console.error('Session creation failed:', err);
       throw err;
     }
-  };
+  }, [sessionId, currentProject?.id, currentAgent?.id]);
 
-  const handleSend = async () => {
-    if (!input.trim() || !currentAgent) return;
+  /**
+   * Handle sending a message with streaming response
+   */
+  const handleSend = useCallback(async () => {
+    if (!input.trim() || !currentAgent || isStreaming) return;
 
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
@@ -259,7 +333,7 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
       status: 'sent',
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages(prev => [...prev, userMessage]);
     const messageText = input;
     setInput('');
     setIsTyping(true);
@@ -267,187 +341,148 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
 
     try {
       const currentSessionId = await ensureSession();
-      const backendAgentName = agentIdToBackendName[currentAgent.id] || 'ideaGenerator';
+      const backendAgentName =
+        agentIdToBackendName[currentAgent.id] || 'ideaGenerator';
 
-      const response = await fetch(`${API_BASE_URL}/chat/message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: currentSessionId,
-          message: messageText,
-          agent: backendAgentName,
-        }),
-      });
+      // Create a placeholder message for streaming
+      const streamingMsgId = `msg-streaming-${Date.now()}`;
+      setStreamingMessageId(streamingMsgId);
+      setStreamingContent('');
 
-      const data = await response.json();
-
-      if (data.success) {
-        const agentMessage: Message = {
-          id: `msg-${Date.now() + 1}`,
-          role: 'assistant',
-          content: data.response,
-          agentId: currentAgent.id,
-          timestamp: new Date(),
-          status: 'delivered',
-          metadata: {
-            agent: data.agent || currentAgent.name,
-          },
-        };
-        setMessages((prev) => [...prev, agentMessage]);
-
-        // Update progress from backend response
-        if (data.progress) {
-          setProgress(data.progress);
-        }
-
-        // Auto-switch to Idea Generator when onboarding completes
-        if (data.onboardingComplete && currentAgent.id === 'onboarding') {
-          // Switch agent immediately (not in setTimeout)
-          switchAgent('idea-generator');
-          
-          // Then generate ideas
-          setIsTyping(true);
-          try {
-            const ideaResponse = await fetch(`${API_BASE_URL}/chat/message`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                sessionId: currentSessionId,
-                message: 'Generate ideas',
-                agent: 'ideaGenerator',
-              }),
-            });
-            const ideaData = await ideaResponse.json();
-            if (ideaData.success) {
-              const ideaMessage: Message = {
-                id: `msg-${Date.now() + 3}`,
-                role: 'assistant',
-                content: ideaData.response,
-                agentId: 'idea-generator',
-                timestamp: new Date(),
-                status: 'delivered',
-              };
-              setMessages((prev) => [...prev, ideaMessage]);
-            }
-          } catch (err) {
-            console.error('Failed to generate ideas:', err);
-          } finally {
-            setIsTyping(false);
-            setTimeout(() => inputRef.current?.focus(), 100);
-          }
-        }
-
-        // Auto-switch to Validator when idea is selected
-        // Check from any agent since selection might come while still showing as onboarding
-        if (data.ideaSelected) {
-          switchAgent('validator');
-          
-          // Trigger validation
-          setIsTyping(true);
-          try {
-            const validationResponse = await fetch(`${API_BASE_URL}/chat/message`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                sessionId: currentSessionId,
-                message: 'Validate my idea',
-                agent: 'validator',
-              }),
-            });
-            const validationData = await validationResponse.json();
-            if (validationData.success) {
-              const validationMessage: Message = {
-                id: `msg-${Date.now() + 4}`,
-                role: 'assistant',
-                content: validationData.response,
-                agentId: 'validator',
-                timestamp: new Date(),
-                status: 'delivered',
-              };
-              setMessages((prev) => [...prev, validationMessage]);
-            }
-          } catch (err) {
-            console.error('Failed to validate idea:', err);
-          } finally {
-            setIsTyping(false);
-            setTimeout(() => inputRef.current?.focus(), 100);
-          }
-        }
-
-        // Auto-switch back to Idea Generator when user wants new ideas
-        if (data.backToIdeas) {
-          setTimeout(async () => {
-            switchAgent('idea-generator');
-            
-            // Auto-trigger new idea generation
-            setIsTyping(true);
-            try {
-              const ideaResponse = await fetch(`${API_BASE_URL}/chat/message`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  sessionId: currentSessionId,
-                  message: 'Generate new ideas',
-                  agent: 'ideaGenerator',
-                }),
-              });
-              const ideaData = await ideaResponse.json();
-              if (ideaData.success) {
-                const ideaMessage: Message = {
-                  id: `msg-${Date.now() + 5}`,
-                  role: 'assistant',
-                  content: ideaData.response,
-                  agentId: 'idea-generator',
-                  timestamp: new Date(),
-                  status: 'delivered',
-                };
-                setMessages((prev) => [...prev, ideaMessage]);
-              }
-            } catch (err) {
-              console.error('Failed to generate new ideas:', err);
-            } finally {
-              setIsTyping(false);
-              setTimeout(() => inputRef.current?.focus(), 100);
-            }
-          }, 1500);
-        }
-
-        // Auto-switch to Builder when user wants to proceed from validation
-        if (data.proceedToBuild) {
-          switchAgent('builder');
-          
-          const builderMessage: Message = {
-            id: `msg-${Date.now() + 6}`,
-            role: 'assistant',
-            content: "Great! I'm your Builder agent now. I can help you with:\n\n1. Creating a PRD (Product Requirements Document)\n2. Writing landing page copy and code\n3. Planning your MVP build\n4. Customer interview scripts\n\nWhat would you like to start with?",
-            agentId: 'builder',
-            timestamp: new Date(),
-            status: 'delivered',
-          };
-          setMessages((prev) => [...prev, builderMessage]);
-        }
-      } else {
-        throw new Error(data.error || 'Failed to get response');
-      }
-    } catch (err) {
-      console.error('Chat error:', err);
-      setError(err instanceof Error ? err.message : 'Something went wrong');
-      // Add error message to chat
-      const errorMessage: Message = {
-        id: `msg-${Date.now() + 1}`,
+      // Add placeholder message to messages list
+      const placeholderMessage: Message = {
+        id: streamingMsgId,
         role: 'assistant',
-        content: `Sorry, I encountered an error: ${err instanceof Error ? err.message : 'Something went wrong'}. Please try again.`,
+        content: '',
         agentId: currentAgent.id,
         timestamp: new Date(),
-        status: 'error',
+        status: 'sending',
       };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
+      setMessages(prev => [...prev, placeholderMessage]);
+
+      // Stream the response
+      await streamMessage({
+        sessionId: currentSessionId,
+        message: messageText,
+        agent: backendAgentName,
+        onChunk: (_chunk, fullContent) => {
+          setStreamingContent(fullContent);
+          // Update the placeholder message with accumulated content
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === streamingMsgId ? { ...msg, content: fullContent } : msg
+            )
+          );
+        },
+        onComplete: async (fullContent, responseAgent) => {
+          // Finalize the message
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === streamingMsgId
+                ? {
+                    ...msg,
+                    content: fullContent,
+                    status: 'delivered',
+                    metadata: { agent: responseAgent },
+                  }
+                : msg
+            )
+          );
+          setStreamingMessageId(null);
+          setStreamingContent('');
+          setIsTyping(false);
+
+          // Fetch progress after streaming completes
+          try {
+            const progressResponse = await fetch(
+              `${API_BASE_URL}/chat/progress/${currentSessionId}`
+            );
+            const progressData = await progressResponse.json();
+            if (progressData.success) {
+              setProgress(progressData);
+            }
+          } catch (err) {
+            console.error('Failed to fetch progress:', err);
+          }
+
+          setTimeout(() => inputRef.current?.focus(), 100);
+        },
+        onError: errorMessage => {
+          // Update placeholder with error
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === streamingMsgId
+                ? {
+                    ...msg,
+                    content: `Sorry, I encountered an error: ${errorMessage}. Please try again.`,
+                    status: 'error',
+                  }
+                : msg
+            )
+          );
+          setStreamingMessageId(null);
+          setStreamingContent('');
+          setIsTyping(false);
+          setError(errorMessage);
+          setTimeout(() => inputRef.current?.focus(), 100);
+        },
+      });
+    } catch (err) {
+      console.error('Chat error:', err);
+      const errorMsg =
+        err instanceof Error ? err.message : 'Something went wrong';
+      setError(errorMsg);
+
+      // Add error message if streaming failed to start
+      if (!streamingMessageId) {
+        const errorMessage: Message = {
+          id: `msg-${Date.now() + 1}`,
+          role: 'assistant',
+          content: `Sorry, I encountered an error: ${errorMsg}. Please try again.`,
+          agentId: currentAgent.id,
+          timestamp: new Date(),
+          status: 'error',
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      }
       setIsTyping(false);
-      // Focus back on input after response
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  };
+  }, [
+    input,
+    currentAgent,
+    isStreaming,
+    streamMessage,
+    streamingMessageId,
+    ensureSession,
+  ]);
+
+  /**
+   * Handle stopping the stream
+   */
+  const handleStopStreaming = useCallback(() => {
+    abortStream();
+
+    // Finalize the streaming message with current content
+    if (streamingMessageId) {
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === streamingMessageId
+            ? {
+                ...msg,
+                status: 'delivered',
+                content: streamingContent || msg.content,
+              }
+            : msg
+        )
+      );
+      setStreamingMessageId(null);
+      setStreamingContent('');
+    }
+
+    setIsTyping(false);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, [abortStream, streamingMessageId, streamingContent]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -469,12 +504,15 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
         <div className="mb-3">
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-medium text-neutral-600">
-              {progress?.phaseName || 'Discovery'}: {progress?.phaseDescription || 'Find your pain point'}
+              {progress?.phaseName || 'Discovery'}:{' '}
+              {progress?.phaseDescription || 'Find your pain point'}
             </span>
-            <span className="text-xs font-semibold text-primary-600">{progressPercentage}%</span>
+            <span className="text-xs font-semibold text-primary-600">
+              {progressPercentage}%
+            </span>
           </div>
           <div className="h-2 bg-neutral-200 rounded-full overflow-hidden">
-            <div 
+            <div
               className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-500"
               style={{ width: `${progressPercentage}%` }}
             />
@@ -486,7 +524,7 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
           {PHASES.map((phase, index) => {
             const isCompleted = completedPhases.includes(phase.id);
             const isCurrent = currentPhase === phase.id;
-            
+
             return (
               <div key={phase.id} className="flex items-center flex-shrink-0">
                 <div
@@ -496,25 +534,38 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
                   )}
                   title={phase.description}
                 >
-                  <div className={cn(
-                    'w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium mb-0.5',
-                    isCurrent ? 'bg-primary-600 text-white ring-2 ring-primary-300 ring-offset-1' :
-                    isCompleted ? 'bg-primary-200 text-primary-700' : 'bg-neutral-200 text-neutral-400'
-                  )}>
+                  <div
+                    className={cn(
+                      'w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium mb-0.5',
+                      isCurrent
+                        ? 'bg-primary-600 text-white ring-2 ring-primary-300 ring-offset-1'
+                        : isCompleted
+                          ? 'bg-primary-200 text-primary-700'
+                          : 'bg-neutral-200 text-neutral-400'
+                    )}
+                  >
                     {isCompleted ? '✓' : phase.icon}
                   </div>
-                  <span className={cn(
-                    'text-[10px] font-medium whitespace-nowrap',
-                    isCurrent ? 'text-primary-700' : isCompleted ? 'text-primary-600' : 'text-neutral-400'
-                  )}>
+                  <span
+                    className={cn(
+                      'text-[10px] font-medium whitespace-nowrap',
+                      isCurrent
+                        ? 'text-primary-700'
+                        : isCompleted
+                          ? 'text-primary-600'
+                          : 'text-neutral-400'
+                    )}
+                  >
                     {phase.label}
                   </span>
                 </div>
                 {index < PHASES.length - 1 && (
-                  <div className={cn(
-                    'w-4 h-0.5 mx-0.5 flex-shrink-0',
-                    isCompleted ? 'bg-primary-400' : 'bg-neutral-200'
-                  )} />
+                  <div
+                    className={cn(
+                      'w-4 h-0.5 mx-0.5 flex-shrink-0',
+                      isCompleted ? 'bg-primary-400' : 'bg-neutral-200'
+                    )}
+                  />
                 )}
               </div>
             );
@@ -526,13 +577,17 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
           <div className="mt-2 pt-2 border-t border-neutral-100 flex items-center gap-4 text-xs text-neutral-500">
             <span>👤 {progress.context.userName}</span>
             {progress.context.painPoint && (
-              <span className="truncate max-w-[200px]" title={progress.context.painPoint}>
+              <span
+                className="truncate max-w-[200px]"
+                title={progress.context.painPoint}
+              >
                 💡 {progress.context.painPoint}
               </span>
             )}
             {progress.milestones?.length > 0 && (
               <span className="text-primary-600">
-                🏆 {progress.milestones.length} milestone{progress.milestones.length > 1 ? 's' : ''}
+                🏆 {progress.milestones.length} milestone
+                {progress.milestones.length > 1 ? 's' : ''}
               </span>
             )}
           </div>
@@ -557,9 +612,11 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
             <button
               onClick={() => {
                 // Copy chat log to clipboard
-                const log = messages.map(m => 
-                  `[${m.role === 'user' ? 'USER' : 'BOT'}]: ${m.content}`
-                ).join('\n\n');
+                const log = messages
+                  .map(
+                    m => `[${m.role === 'user' ? 'USER' : 'BOT'}]: ${m.content}`
+                  )
+                  .join('\n\n');
                 navigator.clipboard.writeText(log);
                 alert('Chat log copied to clipboard!');
               }}
@@ -575,19 +632,22 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
                 setProgress(null); // Reset progress
                 hasLoadedHistory.current = true;
                 setIsLoadingHistory(false);
-                
+
                 // Set greeting directly instead of relying on effect
                 hasGreeted.current = true;
-                const greeting = "Hey there! I'm VentureBot, your entrepreneurship coach. I'm here to help you discover a real problem worth solving and turn it into a business idea. Think of me as your thinking partner - I'll ask questions to help you dig deep and find something meaningful. Let's start simple: what's your name?";
-                setMessages([{
-                  id: `msg-greeting-${Date.now()}`,
-                  role: 'assistant',
-                  content: greeting,
-                  agentId: 'onboarding',
-                  timestamp: new Date(),
-                  status: 'delivered',
-                }]);
-                
+                const greeting =
+                  "Hi! I'm VentureBot, your entrepreneurship coach. I'll help you turn everyday frustrations into real business ideas. Let's discover what problems you're passionate about solving. What's your name?";
+                setMessages([
+                  {
+                    id: `msg-greeting-${Date.now()}`,
+                    role: 'assistant',
+                    content: greeting,
+                    agentId: 'onboarding',
+                    timestamp: new Date(),
+                    status: 'delivered',
+                  },
+                ]);
+
                 switchAgent('onboarding');
               }}
               className="text-xs px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 text-neutral-600 transition-colors"
@@ -623,7 +683,7 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
         )}
 
         <AnimatePresence>
-          {messages.map((message) => (
+          {messages.map(message => (
             <motion.div
               key={message.id}
               initial={{ opacity: 0, y: 10 }}
@@ -649,14 +709,19 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
                 )}
                 padding="sm"
               >
-                <p
-                  className={cn(
-                    'text-sm whitespace-pre-wrap',
-                    message.role === 'user' ? 'text-white' : 'text-neutral-900'
-                  )}
-                >
-                  {message.content}
-                </p>
+                {message.role === 'assistant' ? (
+                  <div className="text-sm text-neutral-900">
+                    <MarkdownRenderer content={message.content} />
+                    {/* Show cursor while streaming this message */}
+                    {message.id === streamingMessageId && (
+                      <span className="inline-block w-2 h-4 bg-primary-500 animate-pulse ml-0.5" />
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm whitespace-pre-wrap text-white">
+                    {message.content}
+                  </p>
+                )}
                 <p
                   className={cn(
                     'text-xs mt-1',
@@ -681,7 +746,8 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
           ))}
         </AnimatePresence>
 
-        {isTyping && (
+        {/* Show typing indicator only when waiting for first chunk (not during streaming) */}
+        {isTyping && !streamingMessageId && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -716,7 +782,7 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
             <Textarea
               ref={inputRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={e => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder={`Message ${currentAgent.name}...`}
               rows={1}
@@ -724,17 +790,28 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
               disabled={isTyping}
               autoFocus
             />
-            <Button
-              onClick={handleSend}
-              disabled={!input.trim() || isTyping}
-              className="flex-shrink-0"
-            >
-              {isTyping ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
+            {isStreaming ? (
+              <Button
+                onClick={handleStopStreaming}
+                variant="secondary"
+                className="flex-shrink-0"
+                title="Stop generating"
+              >
+                <Square className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSend}
+                disabled={!input.trim() || isTyping}
+                className="flex-shrink-0"
+              >
+                {isTyping ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            )}
           </div>
           <p className="text-xs text-neutral-500 mt-2">
             Press Enter to send, Shift+Enter for new line

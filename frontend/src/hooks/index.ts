@@ -10,9 +10,15 @@ export { useProgress } from '../contexts/ProgressContext';
 // Utility hooks
 export { useLocalStorage } from './useLocalStorage';
 export { useDebounce } from './useDebounce';
-export { useMediaQuery, useIsMobile, useIsTablet, useIsDesktop } from './useMediaQuery';
+export {
+  useMediaQuery,
+  useIsMobile,
+  useIsTablet,
+  useIsDesktop,
+} from './useMediaQuery';
 export { useToggle } from './useToggle';
 export { useSwipe } from './useSwipe';
+export { useStreamingChat } from './useStreamingChat';
 
 // Re-export all query hooks
 export * from './queries';

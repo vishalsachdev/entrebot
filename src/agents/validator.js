@@ -12,34 +12,65 @@ IMPORTANT RULES:
 - Never use markdown formatting (no asterisks, no bold, no bullets)
 - Be honest - if an idea is weak, say so constructively
 - Focus on ACTIONABLE insights, not just scores
+- Never make up competitor names - be honest about what you know vs don't know
 
-WHEN VALIDATING AN IDEA, analyze these dimensions:
+CALIBRATED SCORING SCALES (use these exact criteria):
 
-1. FEASIBILITY (X/10)
-   - What specific technologies or skills are needed?
-   - Can one person build an MVP in 2-4 weeks using AI tools?
-   - What's the hardest technical challenge?
+FEASIBILITY (X/10):
+- 10: Build in a weekend with existing tools
+- 7-9: Build in 2-4 weeks with AI tools, minor learning curve
+- 4-6: Requires significant new skills or integrations
+- 1-3: Needs a team, funding, or rare expertise
 
-2. MARKET DEMAND (X/10)
-   - Who exactly would pay for this? Be specific.
-   - How do you know they want it? (search trends, forums, complaints)
-   - What's the estimated market size?
+MARKET DEMAND (X/10):
+- 10: Proven demand (existing solutions have paying customers)
+- 7-9: Strong signals (forum complaints, workarounds in use)
+- 4-6: Moderate interest (some search volume, few solutions)
+- 1-3: Speculative (no evidence of demand yet)
 
-3. COMPETITION (X/10)
-   - Name 2-3 existing competitors or alternatives
-   - What do they charge? What's their weakness?
-   - Why haven't they solved this completely?
+COMPETITION (X/10) - Higher is BETTER (less competition):
+- 10: Blue ocean, no direct competitors
+- 7-9: Few competitors, clear gaps to exploit
+- 4-6: Crowded but differentiation possible
+- 1-3: Dominated by well-funded players
 
-4. DIFFERENTIATION (X/10)
-   - What's your unique angle based on the user's specific pain?
-   - What would make someone switch from existing solutions?
+DIFFERENTIATION (X/10):
+- 10: Unique angle no one has tried
+- 7-9: Clear advantages over existing solutions
+- 4-6: Incremental improvements only
+- 1-3: Me-too product
 
-AFTER SCORES, provide:
-- RISKIEST ASSUMPTION: What must be true for this to work?
-- QUICK TEST: One cheap way to validate in 48 hours (survey, landing page, etc.)
-- GO/NO-GO: Clear recommendation with reasoning
+WHEN VALIDATING AN IDEA, structure your response:
 
-End with: "Ready to proceed with next steps, or want to try a different idea?"
+1. FEASIBILITY: [score]/10
+   Brief explanation of what's needed to build this.
+
+2. MARKET DEMAND: [score]/10
+   Who would pay and evidence of demand.
+
+3. COMPETITION: [score]/10
+   IMPORTANT: Only name competitors you actually know exist with real pricing.
+   If you're unsure, say: "I'd need to research this - search for [specific query] to find competitors."
+
+4. DIFFERENTIATION: [score]/10
+   What makes this different from alternatives.
+
+ASSUMPTION SURFACING (always include):
+
+Your riskiest assumption: [The one thing that must be true for this to work]
+
+48-hour validation test: [A specific, concrete test they can run this week]
+
+Success criteria: [What result means proceed vs pivot]
+
+DECISION FRAMEWORK (end with clear options):
+
+Based on this analysis:
+A) Proceed - [if scores support it, explain positioning]
+B) Pivot - Consider targeting [specific niche] instead because [reason]
+C) Explore different idea - This market may be too [crowded/speculative/difficult]
+
+What's your gut telling you?
 
 WHEN USER WANTS TO PROCEED:
 Provide concrete next steps:
@@ -141,22 +172,102 @@ export class ValidatorAgent extends BaseAgent {
   }
 
   /**
+   * Extract score from response using multiple patterns
+   * @param {string} response - The LLM response text
+   * @param {string} dimension - The dimension name to search for
+   * @returns {number|null} - Extracted score or null if not found
+   */
+  extractScore(response, dimension) {
+    // Pattern 1: "DIMENSION: X/10" or "DIMENSION: X /10"
+    const pattern1 = new RegExp(`${dimension}[:\\s]+?(\\d+)\\s*/\\s*10`, 'i');
+    // Pattern 2: "DIMENSION (X/10)"
+    const pattern2 = new RegExp(`${dimension}\\s*\\(?\\s*(\\d+)\\s*/\\s*10\\s*\\)?`, 'i');
+    // Pattern 3: "DIMENSION ... X/10" within same line
+    const pattern3 = new RegExp(`${dimension}[^\\n]*?(\\d+)\\s*/\\s*10`, 'i');
+    // Pattern 4: Just "DIMENSION...number" as fallback
+    const pattern4 = new RegExp(`${dimension}[^\\d]*(\\d+)`, 'i');
+
+    for (const pattern of [pattern1, pattern2, pattern3, pattern4]) {
+      const match = response.match(pattern);
+      if (match) {
+        const score = parseInt(match[1], 10);
+        // Validate score is in valid range (1-10)
+        if (score >= 1 && score <= 10) {
+          return score;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Extract riskiest assumption from response
+   * @param {string} response - The LLM response text
+   * @returns {string|null} - Extracted assumption or null
+   */
+  extractRiskiestAssumption(response) {
+    // Match "riskiest assumption:" followed by content until next section
+    const pattern = /riskiest assumption[:\s]+([^\n]+(?:\n(?![A-Z0-9]|\d+[\-\.\)]).+)*)/i;
+    const match = response.match(pattern);
+    if (match) {
+      return match[1].trim().substring(0, 500);
+    }
+    return null;
+  }
+
+  /**
+   * Extract validation test from response
+   * @param {string} response - The LLM response text
+   * @returns {string|null} - Extracted test or null
+   */
+  extractValidationTest(response) {
+    // Match "48-hour validation test:" or "48-hour test:" or "validation test:"
+    const pattern =
+      /(?:48[- ]hour\s+)?validation\s+test[:\s]+([^\n]+(?:\n(?![A-Z0-9]|\d+[\-\.\)]).+)*)/i;
+    const match = response.match(pattern);
+    if (match) {
+      return match[1].trim().substring(0, 500);
+    }
+    return null;
+  }
+
+  /**
    * Store validation results in memory
    */
   async storeValidationResults(sessionId, response, ideaId) {
     try {
-      // Extract scores from response (simple pattern matching)
-      const feasibilityMatch = response.match(/feasibility.*?(\d+)/i);
-      const demandMatch = response.match(/demand.*?(\d+)/i);
-      const competitionMatch = response.match(/competition.*?(\d+)/i);
+      // Extract scores using robust multi-pattern matching
+      const feasibility = this.extractScore(response, 'feasibility');
+      const marketDemand =
+        this.extractScore(response, 'market\\s*demand') || this.extractScore(response, 'demand');
+      const competition = this.extractScore(response, 'competition');
+      const differentiation = this.extractScore(response, 'differentiation');
+
+      // Extract assumption and test
+      const riskiestAssumption = this.extractRiskiestAssumption(response);
+      const validationTest = this.extractValidationTest(response);
+
+      // Calculate overall score (weighted average)
+      const scores = [feasibility, marketDemand, competition, differentiation].filter(
+        s => s !== null
+      );
+      const overallScore =
+        scores.length > 0
+          ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
+          : null;
 
       const validationData = {
         id: ideaId,
-        feasibility: feasibilityMatch ? parseInt(feasibilityMatch[1]) : 5,
-        demand: demandMatch ? parseInt(demandMatch[1]) : 5,
-        competition: competitionMatch ? parseInt(competitionMatch[1]) : 5,
+        feasibility: feasibility,
+        marketDemand: marketDemand,
+        competition: competition,
+        differentiation: differentiation,
+        overallScore: overallScore,
+        riskiestAssumption: riskiestAssumption,
+        validationTest: validationTest,
         validated: true,
-        notes: response.substring(0, 500)
+        scoresExtracted: scores.length,
+        notes: response.substring(0, 1000)
       };
 
       await this.setMemory(sessionId, 'Validator', validationData);
