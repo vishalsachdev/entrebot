@@ -14,147 +14,38 @@ This directory contains the complete technical architecture for VentureBot, an A
 
 ## Documentation Structure
 
-### 1. [System Architecture](./architecture.md)
-**Complete technical architecture specification**
+### Core Architecture
+1. **[System Architecture](./architecture.md)** - Complete technical architecture specification
+2. **[API Design](./api-design.md)** - REST API and WebSocket specification  
+3. **[Database Schema](./database-schema.sql)** - Complete Supabase/PostgreSQL schema
 
-**Contents:**
-- High-level architecture diagram
-- Component architecture (Frontend, API Gateway, Agent Orchestration, Tools, Data Layer)
-- Agent orchestration system (Manager + specialized agents)
-- Real-time streaming architecture (Server-Sent Events)
-- WhatsApp integration layer (future Twilio work)
-- Memory management system
-- Scalability & performance strategies
-- Security architecture
-- Monitoring & observability
-- Deployment architecture
-- Error handling & resilience
-- Technology stack summary
-- Architecture Decision Records (ADRs)
+### Implementation & Setup
+4. **[Quick Start](./QUICK_START.md)** - Get started in minutes (demo mode + production setup)
+5. **[Supabase Setup](./SUPABASE_SETUP.md)** - Database configuration guide
+6. **[Setup Complete](./setup-complete.md)** - Full production deployment guide
 
-**Key Decisions:**
-- Multi-agent modular backend (single Express service today)
-- Supabase for database + auth + real-time
-- Node.js 18 + Express backend
-- React frontend with TypeScript
-- Custom BaseAgent orchestration instead of Google ADK
-- Server-Sent Events (SSE) for streaming responses
-- Redis cache (planned) for performance
+### AI Agent System
+7. **[Claude-Flow Integration](./CLAUDE_FLOW_INTEGRATION_GUIDE.md)** - Multi-agent orchestration framework
+8. **[Context & Conventions](./CONTEXT.md)** - Development patterns and best practices
 
----
+### Development Resources
+9. **[File Reference](./FILE_REFERENCE.md)** - File and directory structure guide
+10. **[Testing Guide](./testing.md)** - Testing framework and strategies
+11. **[Frontend API Service](./frontend-api-service.md)** - Frontend integration patterns
 
-### 2. [Database Schema](./database-schema.sql)
-**Complete Supabase/PostgreSQL schema**
+### Research & Analysis
+12. **[Architecture Research](./architecture-research.md)** - Technical research and alternatives
+13. **[Testing Analysis Report](./testing-analysis-report.md)** - Comprehensive testing analysis
 
-**Tables:**
+### Specifications
+14. **[OpenAPI Specification](./openapi.yaml)** - Complete API specification
+15. **[Architecture Decision Records](./adr/)** - Key architectural decisions
 
-**User & Authentication:**
-- `users` - User accounts (extends Supabase auth)
-- `user_profiles` - Additional user metadata
-- `whatsapp_users`, `discord_users`, `telegram_users` - Channel mappings
-
-**Conversations:**
-- `sessions` - Conversation threads
-- `messages` - Individual messages
-- `memory` - Agent memory (key-value store)
-
-**Projects & Ideas:**
-- `projects` - User startup projects
-- `pain_points` - Discovered pain points
-- `ideas` - Generated/selected ideas
-- `validations` - Market research results
-- `products` - PRDs and builder prompts
-
-**Community:**
-- `shared_conversations` - Public share links
-- `hunt_listings` - IllinoisHunt.org listings
-
-**Learning:**
-- `milestones` - Journey tracking
-- `skills` - User-learned skills
-- `learning_resources` - Educational content
-- `resource_progress` - User progress tracking
-
-**Analytics:**
-- `user_activity` - Activity tracking
-- `agent_metrics` - Agent performance
-
-**Features:**
-- Row Level Security (RLS) policies
-- Indexes for performance
-- Triggers for auto-update timestamps
-- Views for analytics
-- Sample data for development
-
----
-
-### 3. [API Design](./api-design.md)
-**Complete REST API and WebSocket specification**
-
-**Endpoint Categories:**
-
-**Authentication:**
-- `POST /auth/register` - User registration
-- `POST /auth/login` - User login
-- `POST /auth/refresh` - Token refresh
-- `POST /auth/logout` - Logout
-
-**User Profile:**
-- `GET /users/{user_id}` - Get profile
-- `PATCH /users/{user_id}` - Update profile
-
-**Projects:**
-- `GET /users/{user_id}/projects` - List projects
-- `POST /users/{user_id}/projects` - Create project
-- `GET /users/{user_id}/projects/{project_id}` - Get details
-- `PATCH /users/{user_id}/projects/{project_id}` - Update
-- `DELETE /users/{user_id}/projects/{project_id}` - Delete
-
-**Conversations:**
-- `POST /apps/manager/users/{user_id}/sessions/{session_id}/run` - Main conversation endpoint
-- `GET /users/{user_id}/sessions` - List sessions
-- `GET /users/{user_id}/sessions/{session_id}` - Get session with messages
-- `DELETE /users/{user_id}/sessions/{session_id}` - Delete session
-
-**Memory:**
-- `GET /users/{user_id}/memory/{key}` - Retrieve memory
-- `POST /users/{user_id}/memory` - Store memory
-- `DELETE /users/{user_id}/memory/{key}` - Delete memory
-
-**Validation & Products:**
-- `GET /users/{user_id}/validations/{validation_id}` - Get validation results
-- `GET /users/{user_id}/products/{product_id}` - Get PRD
-- `PATCH /users/{user_id}/products/{product_id}` - Update (mark launched)
-
-**Sharing:**
-- `POST /conversations/{conversation_id}/share` - Create public share
-- `GET /shared/{share_id}` - Get shared conversation (public)
-- `DELETE /shared/{share_id}` - Revoke share
-
-**Community:**
-- `GET /hunt/listings` - Get IllinoisHunt listings (public)
-- `POST /hunt/listings` - Create listing
-
-**Learning:**
-- `GET /users/{user_id}/milestones` - Get achievements
-- `GET /users/{user_id}/skills` - Get learned skills
-- `GET /learning/resources` - Get recommended resources
-
-**Webhooks (Multi-Channel):**
-- `POST /webhooks/whatsapp` - WhatsApp webhook (Twilio)
-- `POST /webhooks/discord` - Discord bot
-- `POST /webhooks/telegram` - Telegram bot
-
-**WebSocket:**
-- `wss://api.venturebot.io/ws/chat` - Real-time streaming
-
-**Features:**
-- JWT authentication
-- Rate limiting
-- Pagination
-- CORS configuration
-- Error handling
-- SDK examples (TypeScript, Python)
+### Examples & Tools
+16. **[Examples](./examples/)** - Code examples and implementations
+17. **[Monitoring](./monitor/)** - Monitoring and observability tools
+18. **[Plans](./plans/)** - Development plans and roadmaps
+19. **[Reviews](./reviews/)** - Code reviews and analyses
 
 ---
 
@@ -391,6 +282,23 @@ docker-compose up -d
 - Automatic testing on PR
 - Staging environment for testing
 - Production deployment on merge to main
+
+---
+
+## Implementation Status
+
+**Backend (MVP Phase 1):** Implemented
+
+- **Runtime/Framework**: Node.js + Express
+- **Database**: Supabase (PostgreSQL)
+- **AI Provider**: Anthropic Claude (configured via env)
+- **Core capabilities**:
+  - Users, sessions, messages, and memory persistence
+  - Multi-agent scaffolding (base agent + specialized agents)
+  - Server-Sent Events (SSE) streaming for chat responses
+  - Input validation, logging, and centralized error handling
+
+For the current code-level implementation details, see the repository root `README.md` and the API contract docs (`openapi.yaml`, `api-design.md`).
 
 ---
 
