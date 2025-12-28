@@ -316,7 +316,7 @@ Tech Stack Recommendation: [Specific tools with reasons]`
   async generateLandingPage(sessionId, onChunk = null) {
     const selectedIdea = await this.getMemory(sessionId, 'SelectedIdea');
     const userPain = await this.getMemory(sessionId, 'USER_PAIN');
-    const userProfile = await this.getMemory(sessionId, 'USER_PROFILE');
+    // userProfile fetched for potential future personalization
 
     if (!selectedIdea?.idea) {
       throw new Error('No idea selected. Please select and validate an idea first.');

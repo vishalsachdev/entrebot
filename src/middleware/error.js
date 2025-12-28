@@ -7,7 +7,7 @@ import { logger } from '../config/logger.js';
 /**
  * Global error handler
  */
-export const errorHandler = (err, req, res, next) => {
+export const errorHandler = (err, req, res, _next) => {
   logger.error('Error:', {
     message: err.message,
     stack: err.stack,

@@ -164,7 +164,6 @@ export class OnboardingAgent extends BaseAgent {
       // Check if this is a response to the reflection question
       // If reflectionAsked is true, mark reflectionReceived
       if (userPain.reflectionAsked && !userPain.reflectionReceived) {
-        console.log('[chat] Marking reflection as received');
         userPain.reflectionReceived = true;
         await this.setMemory(sessionId, 'USER_PAIN', userPain);
       }
@@ -183,7 +182,6 @@ export class OnboardingAgent extends BaseAgent {
       // After sending response, if depth is sufficient and reflection not asked yet,
       // mark that reflection question should have been asked
       if (depthScore >= 2 && !userPain.reflectionAsked) {
-        console.log('[chat] Marking reflectionAsked=true (depthScore:', depthScore, ')');
         userPain.reflectionAsked = true;
         await this.setMemory(sessionId, 'USER_PAIN', userPain);
       }
@@ -300,10 +298,8 @@ export class OnboardingAgent extends BaseAgent {
         { pattern: /occasionally|sometimes|once in a while|rarely/i, value: 'occasionally' }
       ];
 
-      console.log('[extractAndStoreInfo] Checking frequency in message:', message);
       for (const { pattern, value } of frequencyPatterns) {
         if (pattern.test(message)) {
-          console.log('[extractAndStoreInfo] Found frequency:', value);
           existingPain.frequency = value;
           break;
         }
@@ -369,18 +365,13 @@ export class OnboardingAgent extends BaseAgent {
     const userProfile = await this.getMemory(sessionId, 'USER_PROFILE');
     const userPain = await this.getMemory(sessionId, 'USER_PAIN');
 
-    console.log('[isComplete] userProfile:', userProfile);
-    console.log('[isComplete] userPain:', userPain);
-
     // Need name and pain description
     if (!userProfile?.name || !userPain?.description) {
-      console.log('[isComplete] Missing name or description, returning false');
       return false;
     }
 
     // Description should be at least 20 characters (more substantial)
     if (userPain.description.length < 20) {
-      console.log('[isComplete] Description too short, returning false');
       return false;
     }
 
@@ -390,13 +381,10 @@ export class OnboardingAgent extends BaseAgent {
     // CRITICAL: If reflection was asked but not yet received, don't complete
     // This prevents transitioning before user answers the reflection question
     if (userPain.reflectionAsked && !userPain.reflectionReceived) {
-      console.log('[isComplete] Waiting for reflection response, returning false');
       return false;
     }
 
-    const isComplete = depthScore >= 2;
-    console.log('[isComplete] depthScore:', depthScore, '- returning', isComplete);
-    return isComplete;
+    return depthScore >= 2;
   }
 
   /**

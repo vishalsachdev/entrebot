@@ -75,7 +75,7 @@ router.post(
   optionalAuth,
   validateBody(schemas.sendMessage),
   asyncHandler(async (req, res) => {
-    const { userId } = req;
+    const { userId: _userId } = req;
     const { sessionId, message, agent: requestedAgent } = req.body;
     const lowerMessage = message.toLowerCase();
 
@@ -212,7 +212,7 @@ router.post(
   optionalAuth,
   validateBody(schemas.sendMessage),
   asyncHandler(async (req, res) => {
-    const { userId } = req;
+    const { userId: _userId } = req;
     const { sessionId, message, agent: agentName } = req.body;
 
     // Set up SSE
@@ -315,7 +315,7 @@ router.post(
   authenticate,
   validateBody(schemas.selectIdea),
   asyncHandler(async (req, res) => {
-    const { userId } = req;
+    const { userId: _userId } = req;
     const { sessionId, ideaNumber, ideaText } = req.body;
 
     const agent = getAgent('ideaGenerator');

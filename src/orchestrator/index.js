@@ -9,8 +9,8 @@
  * - Curriculum-aware transitions (for course mode)
  */
 
-import { getAgent, agents } from '../agents/index.js';
-import { memoryQueries, conversationQueries } from '../database/queries.js';
+import { getAgent } from '../agents/index.js';
+import { memoryQueries } from '../database/queries.js';
 import { logger } from '../config/logger.js';
 
 /**
@@ -180,7 +180,7 @@ export class Orchestrator {
     };
 
     // Remove memory from state before saving (it's fetched separately)
-    const { memory, ...stateToSave } = newState;
+    const { memory: _memory, ...stateToSave } = newState;
     await memoryQueries.set(sessionId, 'JOURNEY_STATE', stateToSave);
 
     return newState;
