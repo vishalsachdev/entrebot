@@ -7,6 +7,7 @@ import express from 'express';
 import { logger } from '../config/logger.js';
 import chatRoutes from './chat.js';
 import userRoutes from './users.js';
+import projectRoutes from './projects.js';
 import sessionRoutes from './sessions.js';
 import conversationRoutes from './conversations.js';
 import memoryRoutes from './memory.js';
@@ -32,6 +33,7 @@ router.get('/version', (req, res) => {
     endpoints: {
       chat: '/api/v1/chat',
       users: '/api/v1/users',
+      projects: '/api/v1/projects',
       sessions: '/api/v1/sessions',
       conversations: '/api/v1/conversations',
       memory: '/api/v1/memory'
@@ -60,6 +62,7 @@ router.use((req, res, next) => {
 // Mount routes
 router.use('/chat', chatRoutes);
 router.use('/users', userRoutes);
+router.use('/projects', projectRoutes);
 router.use('/sessions', sessionRoutes);
 router.use('/conversations', conversationRoutes);
 router.use('/memory', memoryRoutes);

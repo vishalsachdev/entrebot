@@ -124,7 +124,25 @@ export interface DbUser {
   id: string;
   email: string;
   name: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbProject {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  status:
+    | 'ideation'
+    | 'validation'
+    | 'planning'
+    | 'building'
+    | 'launched'
+    | 'active'
+    | 'paused'
+    | 'abandoned';
   created_at: string;
   updated_at: string;
 }
@@ -132,7 +150,8 @@ export interface DbUser {
 export interface DbSession {
   id: string;
   user_id: string;
-  metadata?: Record<string, any>;
+  project_id: string | null;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -142,7 +161,7 @@ export interface DbConversation {
   session_id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   created_at: string;
 }
 
@@ -150,7 +169,7 @@ export interface DbMemory {
   id: string;
   session_id: string;
   key: string;
-  value: any;
+  value: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -178,37 +197,37 @@ export interface ApiError {
   message: string;
   code?: string;
   status?: number;
-  details?: any;
+  details?: unknown;
 }
 
 // Request types
 export interface CreateUserRequest {
   email: string;
   name: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface UpdateUserRequest {
   name?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreateSessionRequest {
   user_id: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AddMessageRequest {
   session_id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface SetMemoryRequest {
   session_id: string;
   key: string;
-  value: any;
+  value: unknown;
 }
 
 // Form types

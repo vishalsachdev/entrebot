@@ -17,6 +17,7 @@ const router = express.Router();
 // Validation schemas
 const createSessionSchema = Joi.object({
   userId: Joi.string().required(),
+  projectId: Joi.string().uuid().optional().allow(null),
   metadata: Joi.object().optional()
 });
 
@@ -87,11 +88,13 @@ router.post(
   '/',
   validateBody(createSessionSchema),
   asyncHandler(async (req, res) => {
-    const { userId, metadata = {} } = req.body;
+    const { userId, projectId = null, metadata = {} } = req.body;
 
-    logger.info(`Creating session for user: ${userId}`);
+    logger.info(
+      `Creating session for user: ${userId}${projectId ? `, project: ${projectId}` : ''}`
+    );
 
-    const result = await sessionQueries.create(userId, metadata);
+    const result = await sessionQueries.create(userId, projectId, metadata);
 
     if (!result.success) {
       logger.error(`Failed to create session: ${result.error}`);

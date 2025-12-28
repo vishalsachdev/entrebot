@@ -85,13 +85,139 @@ export const userQueries = {
 };
 
 /**
+ * Project Operations
+ */
+export const projectQueries = {
+  /**
+   * Create new project
+   */
+  async create(userId, name, description = null) {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('projects')
+        .insert([
+          {
+            user_id: userId,
+            name,
+            description,
+            status: 'ideation',
+            created_at: new Date().toISOString()
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+      return { success: true, project: data };
+    } catch (error) {
+      logger.error('Error creating project:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Get all projects for a user
+   */
+  async getByUserId(userId) {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+      return { success: true, projects: data || [] };
+    } catch (error) {
+      logger.error('Error fetching user projects:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Get project by ID
+   */
+  async getById(projectId) {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .single();
+
+      if (error) {
+        throw error;
+      }
+      return { success: true, project: data };
+    } catch (error) {
+      logger.error('Error fetching project:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Update project
+   */
+  async update(projectId, updates) {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('projects')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', projectId)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+      return { success: true, project: data };
+    } catch (error) {
+      logger.error('Error updating project:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Delete project
+   */
+  async delete(projectId) {
+    try {
+      const supabase = getSupabase();
+      const { error } = await supabase.from('projects').delete().eq('id', projectId);
+
+      if (error) {
+        throw error;
+      }
+      return { success: true };
+    } catch (error) {
+      logger.error('Error deleting project:', error);
+      return { success: false, error: error.message };
+    }
+  }
+};
+
+/**
  * Session Operations
  */
 export const sessionQueries = {
   /**
    * Create new session
+   * @param {string} userId - User ID
+   * @param {string|null} projectId - Optional project ID to link session to
+   * @param {Object} metadata - Optional session metadata
    */
-  async create(userId, metadata = {}) {
+  async create(userId, projectId = null, metadata = {}) {
     try {
       const supabase = getSupabase();
       const { data, error } = await supabase
@@ -99,6 +225,7 @@ export const sessionQueries = {
         .insert([
           {
             user_id: userId,
+            project_id: projectId,
             metadata,
             created_at: new Date().toISOString()
           }
@@ -134,6 +261,50 @@ export const sessionQueries = {
       return { success: true, session: data };
     } catch (error) {
       logger.error('Error fetching session:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Get sessions by project ID
+   */
+  async getByProjectId(projectId) {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+      return { success: true, sessions: data || [] };
+    } catch (error) {
+      logger.error('Error fetching project sessions:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Get sessions by user ID
+   */
+  async getByUserId(userId) {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+      return { success: true, sessions: data || [] };
+    } catch (error) {
+      logger.error('Error fetching user sessions:', error);
       return { success: false, error: error.message };
     }
   }
@@ -499,6 +670,7 @@ export const batchQueries = {
 
 export default {
   userQueries,
+  projectQueries,
   sessionQueries,
   conversationQueries,
   memoryQueries,

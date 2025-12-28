@@ -9,9 +9,28 @@ export interface DbUser {
   updated_at: string;
 }
 
+export interface DbProject {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  status:
+    | 'ideation'
+    | 'validation'
+    | 'planning'
+    | 'building'
+    | 'launched'
+    | 'active'
+    | 'paused'
+    | 'abandoned';
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DbSession {
   id: string;
   user_id: string;
+  project_id: string | null;
   metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
