@@ -30,11 +30,11 @@ router.get('/version', (req, res) => {
     version: '1.0.0',
     name: 'Entrebot API',
     endpoints: {
-      chat: '/api/chat',
-      users: '/api/users',
-      sessions: '/api/sessions',
-      conversations: '/api/conversations',
-      memory: '/api/memory'
+      chat: '/api/v1/chat',
+      users: '/api/v1/users',
+      sessions: '/api/v1/sessions',
+      conversations: '/api/v1/conversations',
+      memory: '/api/v1/memory'
     }
   });
 });

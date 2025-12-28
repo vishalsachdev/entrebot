@@ -1,0 +1,1448 @@
+openapi: 3.0.3
+info:
+  title: VentureBot API
+  version: 1.0.0
+  description: |
+    VentureBot API - An AI-powered entrepreneurial assistant that helps users
+    discover business ideas, validate concepts, and build products.
+
+    The API supports a multi-phase conversation flow:
+    - **Onboarding**: Understand user's pain points and background
+    - **Ideation**: Generate and explore business ideas
+    - **Validation**: Validate selected ideas with market analysis
+    - **Strategy**: Plan execution and build products
+  contact:
+    name: VentureBot Support
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+
+tags:
+  - name: Health
+    description: Health check and version endpoints
+  - name: Chat
+    description: Main conversation and messaging endpoints
+  - name: Users
+    description: User management operations
+  - name: Sessions
+    description: Session management operations
+  - name: Conversations
+    description: Message and conversation history operations
+  - name: Memory
+    description: Session memory persistence operations
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns the health status of the API server
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                success: true
+                status: healthy
+                timestamp: "2024-01-15T10:30:00.000Z"
+                uptime: 3600.5
+
+  /version:
+    get:
+      tags:
+        - Health
+      summary: API version information
+      description: Returns API version and available endpoint information
+      operationId: getVersion
+      responses:
+        '200':
+          description: Version information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+              example:
+                success: true
+                version: "1.0.0"
+                name: "Entrebot API"
+                endpoints:
+                  chat: "/api/chat"
+                  users: "/api/users"
+                  sessions: "/api/sessions"
+                  conversations: "/api/conversations"
+                  memory: "/api/memory"
+
+  /chat/sessions:
+    post:
+      tags:
+        - Chat
+      summary: Create new chat session
+      description: Creates a new chat session for the authenticated user
+      operationId: createChatSession
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Chat session created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  session:
+                    $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /chat/sessions/{sessionId}:
+    get:
+      tags:
+        - Chat
+      summary: Get chat session details
+      description: Retrieves details of a specific chat session
+      operationId: getChatSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  session:
+                    $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /chat/message:
+    post:
+      tags:
+        - Chat
+      summary: Send message to agent
+      description: |
+        Sends a message to the AI agent and receives a response. The orchestrator
+        automatically routes the message to the appropriate agent based on the
+        current conversation phase.
+
+        **Phases:**
+        - `onboarding`: Initial user discovery
+        - `ideation`: Business idea generation
+        - `validation`: Idea validation and market analysis
+        - `strategy`: Execution planning and building
+      operationId: sendMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+            example:
+              sessionId: "550e8400-e29b-41d4-a716-446655440000"
+              message: "I want to solve the problem of managing personal finances"
+              agent: "onboarding"
+      responses:
+        '200':
+          description: Message processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                success: true
+                response: "That's a great area to focus on! Tell me more about your experience with personal finance management..."
+                phase: "onboarding"
+                phaseChanged: false
+                onboardingComplete: false
+                ideaSelected: false
+                backToIdeas: false
+                proceedToBuild: false
+                progress:
+                  currentPhase: "onboarding"
+                  completedPhases: []
+                  milestones: []
+                  percentComplete: 10
+                agent: "Onboarding"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /chat/stream:
+    post:
+      tags:
+        - Chat
+      summary: Stream message response
+      description: |
+        Sends a message and streams the response using Server-Sent Events (SSE).
+        Each chunk is sent as a JSON object with the partial response.
+      operationId: streamMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '200':
+          description: Streaming response
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  SSE stream with JSON chunks:
+                  - `{ chunk: "partial text", agent: "AgentName" }` - Content chunk
+                  - `{ done: true }` - Stream complete
+                  - `{ error: "message" }` - Error occurred
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /chat/history/{sessionId}:
+    get:
+      tags:
+        - Chat
+      summary: Get conversation history
+      description: Retrieves the conversation history for a session
+      operationId: getChatHistory
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - name: limit
+          in: query
+          description: Maximum number of messages to return
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 1000
+        - name: countOnly
+          in: query
+          description: Return only message count, not content
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Conversation history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  count:
+                    type: integer
+                    example: 15
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /chat/select-idea:
+    post:
+      tags:
+        - Chat
+      summary: Select an idea for validation
+      description: Selects one of the generated ideas to proceed with validation
+      operationId: selectIdea
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelectIdeaRequest'
+            example:
+              sessionId: "550e8400-e29b-41d4-a716-446655440000"
+              ideaNumber: 2
+              ideaText: "AI-powered budgeting assistant that learns spending patterns"
+      responses:
+        '200':
+          description: Idea selected successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  selectedIdea:
+                    type: object
+                    description: The selected idea details
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /chat/progress/{sessionId}:
+    get:
+      tags:
+        - Chat
+      summary: Get journey progress
+      description: Retrieves the user's progress through the entrepreneurial journey phases
+      operationId: getProgress
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Progress retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressResponse'
+              example:
+                success: true
+                currentPhase: "validation"
+                completedPhases:
+                  - "onboarding"
+                  - "ideation"
+                milestones:
+                  - "pain_articulated"
+                  - "ideas_generated"
+                  - "idea_selected"
+                percentComplete: 50
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /chat/phases:
+    get:
+      tags:
+        - Chat
+      summary: Get available phases
+      description: Returns information about all available journey phases
+      operationId: getPhases
+      responses:
+        '200':
+          description: Phases retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  phases:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Phase'
+
+  /users:
+    post:
+      tags:
+        - Users
+      summary: Create or get user
+      description: Creates a new user or returns existing user if email already exists
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+            example:
+              email: "user@example.com"
+              name: "John Doe"
+              phone: "+1234567890"
+      responses:
+        '200':
+          description: Existing user returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '201':
+          description: New user created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /users/{email}:
+    get:
+      tags:
+        - Users
+      summary: Get user by email
+      description: Retrieves user information by email address
+      operationId: getUserByEmail
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: email
+          in: path
+          required: true
+          description: User email address
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: User retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /users/{userId}:
+    put:
+      tags:
+        - Users
+      summary: Update user profile
+      description: Updates user profile information
+      operationId: updateUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: User ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+            example:
+              name: "Jane Doe"
+              phone: "+0987654321"
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions:
+    get:
+      tags:
+        - Sessions
+      summary: List sessions by email
+      description: Returns all sessions for a user identified by email
+      operationId: listSessions
+      parameters:
+        - name: email
+          in: query
+          required: true
+          description: User email address
+          schema:
+            type: string
+            format: email
+        - name: limit
+          in: query
+          description: Maximum number of sessions to return
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Sessions retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags:
+        - Sessions
+      summary: Create new session
+      description: Creates a new session for a user
+      operationId: createSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+            example:
+              userId: "550e8400-e29b-41d4-a716-446655440000"
+              metadata:
+                source: "web"
+                version: "1.0"
+      responses:
+        '201':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions/{id}:
+    get:
+      tags:
+        - Sessions
+      summary: Get session by ID
+      description: Retrieves session details by session ID
+      operationId: getSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Session ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions/users/{userId}/sessions:
+    get:
+      tags:
+        - Sessions
+      summary: Get sessions for user
+      description: Returns all sessions for a specific user ID
+      operationId: getUserSessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: User ID (UUID)
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          description: Maximum number of sessions to return
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Sessions retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /conversations:
+    post:
+      tags:
+        - Conversations
+      summary: Add message to session
+      description: Adds a new message to a conversation session
+      operationId: createMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMessageRequest'
+            example:
+              sessionId: "550e8400-e29b-41d4-a716-446655440000"
+              role: "user"
+              content: "I want to build a SaaS product"
+              metadata:
+                source: "web"
+      responses:
+        '201':
+          description: Message created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /conversations/{sessionId}:
+    get:
+      tags:
+        - Conversations
+      summary: Get conversation history
+      description: Retrieves all messages in a conversation session
+      operationId: getConversation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - name: limit
+          in: query
+          description: Maximum number of messages to return
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Conversation retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  count:
+                    type: integer
+                    example: 25
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /conversations/{sessionId}/summary:
+    get:
+      tags:
+        - Conversations
+      summary: Get conversation summary
+      description: Returns statistical summary of a conversation
+      operationId: getConversationSummary
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Summary retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationSummaryResponse'
+              example:
+                success: true
+                data:
+                  sessionId: "550e8400-e29b-41d4-a716-446655440000"
+                  totalMessages: 42
+                  messagesByRole:
+                    user: 20
+                    assistant: 21
+                    system: 1
+                  firstMessage:
+                    id: "message-id"
+                    role: "system"
+                    content: "Welcome to VentureBot!"
+                    created_at: "2024-01-15T10:00:00.000Z"
+                  lastMessage:
+                    id: "message-id-42"
+                    role: "assistant"
+                    content: "Your PRD is ready!"
+                    created_at: "2024-01-15T11:30:00.000Z"
+                  conversationStarted: "2024-01-15T10:00:00.000Z"
+                  lastActivity: "2024-01-15T11:30:00.000Z"
+                  totalCharacters: 15420
+                  averageMessageLength: 367
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /memory:
+    post:
+      tags:
+        - Memory
+      summary: Store memory value
+      description: Stores a key-value pair in session memory
+      operationId: setMemory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetMemoryRequest'
+            example:
+              sessionId: "550e8400-e29b-41d4-a716-446655440000"
+              key: "SelectedIdea"
+              value:
+                id: 2
+                title: "AI Budgeting Assistant"
+                description: "An AI-powered tool that learns spending patterns"
+      responses:
+        '201':
+          description: Memory stored successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      sessionId:
+                        type: string
+                        format: uuid
+                      key:
+                        type: string
+                      stored:
+                        type: boolean
+                        example: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /memory/{sessionId}:
+    get:
+      tags:
+        - Memory
+      summary: Get all session memory
+      description: Retrieves all memory key-value pairs for a session
+      operationId: getAllMemory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Memory retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllMemoryResponse'
+              example:
+                success: true
+                data:
+                  sessionId: "550e8400-e29b-41d4-a716-446655440000"
+                  memory:
+                    Onboarding:
+                      painPoint: "Managing personal finances"
+                      background: "Software developer"
+                    GeneratedIdeas:
+                      generated: true
+                    SelectedIdea:
+                      id: 2
+                      title: "AI Budgeting Assistant"
+                  count: 3
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /memory/{sessionId}/{key}:
+    get:
+      tags:
+        - Memory
+      summary: Get specific memory value
+      description: Retrieves a specific memory value by key
+      operationId: getMemory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - name: key
+          in: path
+          required: true
+          description: Memory key
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9._-]+$'
+      responses:
+        '200':
+          description: Memory value retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryValueResponse'
+              example:
+                success: true
+                data:
+                  sessionId: "550e8400-e29b-41d4-a716-446655440000"
+                  key: "SelectedIdea"
+                  value:
+                    id: 2
+                    title: "AI Budgeting Assistant"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags:
+        - Memory
+      summary: Delete memory key
+      description: Deletes a specific memory key-value pair
+      operationId: deleteMemory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - name: key
+          in: path
+          required: true
+          description: Memory key to delete
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9._-]+$'
+      responses:
+        '200':
+          description: Memory deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      sessionId:
+                        type: string
+                        format: uuid
+                      key:
+                        type: string
+                      deleted:
+                        type: boolean
+                        example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      description: Session ID (UUID)
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Bad request - validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Validation failed"
+            details:
+              - "\"sessionId\" is required"
+
+    Unauthorized:
+      description: Unauthorized - authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Authentication required"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Resource not found"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Internal server error"
+
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - success
+        - status
+        - timestamp
+        - uptime
+      properties:
+        success:
+          type: boolean
+        status:
+          type: string
+          enum: [healthy]
+        timestamp:
+          type: string
+          format: date-time
+        uptime:
+          type: number
+          description: Server uptime in seconds
+
+    VersionResponse:
+      type: object
+      required:
+        - success
+        - version
+        - name
+        - endpoints
+      properties:
+        success:
+          type: boolean
+        version:
+          type: string
+        name:
+          type: string
+        endpoints:
+          type: object
+          additionalProperties:
+            type: string
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+        details:
+          type: array
+          items:
+            type: string
+
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Session:
+      type: object
+      required:
+        - id
+        - user_id
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      required:
+        - id
+        - session_id
+        - role
+        - content
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+          properties:
+            agent:
+              type: string
+              description: Name of the agent that generated the response
+        created_at:
+          type: string
+          format: date-time
+
+    Phase:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - agents
+        - milestones
+      properties:
+        id:
+          type: string
+          description: Phase identifier
+        name:
+          type: string
+          description: Human-readable phase name
+        description:
+          type: string
+          description: Description of the phase
+        agents:
+          type: array
+          items:
+            type: string
+          description: Agents available in this phase
+        milestones:
+          type: array
+          items:
+            type: string
+          description: Milestones that can be achieved in this phase
+
+    Progress:
+      type: object
+      required:
+        - currentPhase
+        - completedPhases
+        - milestones
+        - percentComplete
+      properties:
+        currentPhase:
+          type: string
+          description: Current phase in the journey
+          enum: [onboarding, ideation, validation, strategy]
+        completedPhases:
+          type: array
+          items:
+            type: string
+          description: List of completed phase IDs
+        milestones:
+          type: array
+          items:
+            type: string
+          description: List of achieved milestone IDs
+        percentComplete:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Overall progress percentage
+
+    CreateUserRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        phone:
+          type: string
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+
+    UserResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/User'
+
+    CreateSessionRequest:
+      type: object
+      required:
+        - userId
+      properties:
+        userId:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+
+    SessionListResponse:
+      type: object
+      required:
+        - success
+        - data
+        - count
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Session'
+        count:
+          type: integer
+
+    SendMessageRequest:
+      type: object
+      required:
+        - sessionId
+        - message
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        message:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        agent:
+          type: string
+          enum: [onboarding, ideaGenerator, validator]
+          description: Optional agent override
+
+    MessageResponse:
+      type: object
+      required:
+        - success
+        - response
+        - phase
+        - agent
+      properties:
+        success:
+          type: boolean
+        response:
+          type: string
+          description: Agent's response text
+        phase:
+          type: string
+          enum: [onboarding, ideation, validation, strategy]
+          description: Current phase after processing
+        phaseChanged:
+          type: boolean
+          description: Whether the phase changed as a result of this message
+        onboardingComplete:
+          type: boolean
+          description: Whether onboarding phase completed
+        ideaSelected:
+          type: boolean
+          description: Whether an idea was selected
+        backToIdeas:
+          type: boolean
+          description: Whether user requested to go back to idea selection
+        proceedToBuild:
+          type: boolean
+          description: Whether user is proceeding to build phase
+        progress:
+          $ref: '#/components/schemas/Progress'
+        agent:
+          type: string
+          description: Name of the agent that handled the message
+
+    SelectIdeaRequest:
+      type: object
+      required:
+        - sessionId
+        - ideaNumber
+        - ideaText
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        ideaNumber:
+          type: integer
+          minimum: 1
+          maximum: 5
+        ideaText:
+          type: string
+          description: Text of the selected idea
+
+    ProgressResponse:
+      type: object
+      required:
+        - success
+        - currentPhase
+        - completedPhases
+        - milestones
+        - percentComplete
+      allOf:
+        - type: object
+          properties:
+            success:
+              type: boolean
+        - $ref: '#/components/schemas/Progress'
+
+    CreateMessageRequest:
+      type: object
+      required:
+        - sessionId
+        - role
+        - content
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: string
+          minLength: 1
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ConversationSummary:
+      type: object
+      required:
+        - sessionId
+        - totalMessages
+        - messagesByRole
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        totalMessages:
+          type: integer
+        messagesByRole:
+          type: object
+          properties:
+            user:
+              type: integer
+            assistant:
+              type: integer
+            system:
+              type: integer
+        firstMessage:
+          $ref: '#/components/schemas/Message'
+          nullable: true
+        lastMessage:
+          $ref: '#/components/schemas/Message'
+          nullable: true
+        conversationStarted:
+          type: string
+          format: date-time
+          nullable: true
+        lastActivity:
+          type: string
+          format: date-time
+          nullable: true
+        totalCharacters:
+          type: integer
+        averageMessageLength:
+          type: integer
+
+    ConversationSummaryResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/ConversationSummary'
+
+    SetMemoryRequest:
+      type: object
+      required:
+        - sessionId
+        - key
+        - value
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        key:
+          type: string
+          pattern: '^[a-zA-Z0-9._-]+$'
+          description: Memory key (alphanumeric, dots, underscores, hyphens only)
+        value:
+          description: Any JSON-serializable value
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+            - type: object
+            - type: array
+
+    MemoryValueResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          required:
+            - sessionId
+            - key
+            - value
+          properties:
+            sessionId:
+              type: string
+              format: uuid
+            key:
+              type: string
+            value:
+              description: The stored value
+
+    AllMemoryResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          required:
+            - sessionId
+            - memory
+            - count
+          properties:
+            sessionId:
+              type: string
+              format: uuid
+            memory:
+              type: object
+              additionalProperties: true
+              description: Key-value pairs of all memory items
+            count:
+              type: integer
+              description: Number of memory items

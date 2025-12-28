@@ -50,7 +50,10 @@ app.use('/api/', limiter);
 /**
  * Routes
  */
-app.use('/api', routes);
+app.use('/api/v1', routes);
+
+// Backwards compatibility redirects
+app.get('/api/health', (req, res) => res.redirect(301, '/api/v1/health'));
 
 // SPA fallback for frontend routes
 app.get('*', (req, res, next) => {
@@ -93,7 +96,7 @@ const startServer = async () => {
       logger.info(`✅ Server running on port ${config.port}`);
       logger.info(`📝 Environment: ${config.nodeEnv}`);
       logger.info(`🤖 Model: ${config.openai.model}`);
-      logger.info(`🔗 Health check: http://localhost:${config.port}/api/health`);
+      logger.info(`🔗 Health check: http://localhost:${config.port}/api/v1/health`);
     });
   } catch (error) {
     logger.error('Failed to start server:', error);

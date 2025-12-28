@@ -1,21 +1,33 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import {
-  AuthProvider,
-  AppContextProvider,
-} from './contexts';
+import { AuthProvider, AppContextProvider } from './contexts';
 import { ProtectedRoute } from './components/auth';
 import { AppShell } from './components/layout';
 import { ContextErrorBoundary } from './components/ContextErrorBoundary';
+
+// Eager load auth pages for better UX
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import Projects from './pages/Projects';
-import Agents from './pages/Agents';
-import Progress from './pages/Progress';
-import History from './pages/History';
-import Settings from './pages/Settings';
-import ComponentDemo from './pages/ComponentDemo';
+
+// Lazy load all other pages for code splitting
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Projects = lazy(() => import('./pages/Projects'));
+const Agents = lazy(() => import('./pages/Agents'));
+const Progress = lazy(() => import('./pages/Progress'));
+const History = lazy(() => import('./pages/History'));
+const Settings = lazy(() => import('./pages/Settings'));
+const ComponentDemo = lazy(() => import('./pages/ComponentDemo'));
+
+// Simple loading fallback component
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="flex flex-col items-center gap-3">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <p className="text-sm text-muted-foreground">Loading...</p>
+    </div>
+  </div>
+);
 
 // Create a client
 const queryClient = new QueryClient({
@@ -39,13 +51,15 @@ function App() {
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
 
-                {/* Protected Routes with AppShell */}
+                {/* Protected Routes with AppShell - wrapped in Suspense for lazy loading */}
                 <Route
                   path="/"
                   element={
                     <ProtectedRoute>
                       <AppShell>
-                        <Dashboard />
+                        <Suspense fallback={<PageLoader />}>
+                          <Dashboard />
+                        </Suspense>
                       </AppShell>
                     </ProtectedRoute>
                   }
@@ -55,7 +69,9 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <AppShell>
-                        <Projects />
+                        <Suspense fallback={<PageLoader />}>
+                          <Projects />
+                        </Suspense>
                       </AppShell>
                     </ProtectedRoute>
                   }
@@ -65,7 +81,9 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <AppShell>
-                        <Agents />
+                        <Suspense fallback={<PageLoader />}>
+                          <Agents />
+                        </Suspense>
                       </AppShell>
                     </ProtectedRoute>
                   }
@@ -75,7 +93,9 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <AppShell>
-                        <Progress />
+                        <Suspense fallback={<PageLoader />}>
+                          <Progress />
+                        </Suspense>
                       </AppShell>
                     </ProtectedRoute>
                   }
@@ -85,7 +105,9 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <AppShell>
-                        <History />
+                        <Suspense fallback={<PageLoader />}>
+                          <History />
+                        </Suspense>
                       </AppShell>
                     </ProtectedRoute>
                   }
@@ -95,7 +117,9 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <AppShell>
-                        <Settings />
+                        <Suspense fallback={<PageLoader />}>
+                          <Settings />
+                        </Suspense>
                       </AppShell>
                     </ProtectedRoute>
                   }
@@ -105,7 +129,9 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <AppShell>
-                        <ComponentDemo />
+                        <Suspense fallback={<PageLoader />}>
+                          <ComponentDemo />
+                        </Suspense>
                       </AppShell>
                     </ProtectedRoute>
                   }

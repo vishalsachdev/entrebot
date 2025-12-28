@@ -11,6 +11,12 @@ import { conversationQueries, sessionQueries, memoryQueries } from '../database/
 import { getAgent } from '../agents/index.js';
 import { orchestrator, PHASES } from '../orchestrator/index.js';
 import { logger } from '../config/logger.js';
+import {
+  parseIdeaSelection,
+  isBackToIdeasRequest,
+  isProceedToBuildRequest,
+  handleAgentResponse
+} from '../services/chat.js';
 
 const router = express.Router();
 
@@ -66,8 +72,10 @@ router.get(
  */
 router.post(
   '/message',
+  authenticate,
   validateBody(schemas.sendMessage),
   asyncHandler(async (req, res) => {
+    const { userId } = req;
     const { sessionId, message, agent: requestedAgent } = req.body;
     const lowerMessage = message.toLowerCase();
 
@@ -196,115 +204,15 @@ router.post(
 );
 
 /**
- * Helper: Parse idea selection from message
- */
-function parseIdeaSelection(message) {
-  const lowerMessage = message.toLowerCase();
-  const ideaMatch = message.match(/\b([1-5])\b/);
-  const wordSelections = {
-    first: 1,
-    '1st': 1,
-    second: 2,
-    '2nd': 2,
-    third: 3,
-    '3rd': 3,
-    fourth: 4,
-    '4th': 4,
-    fifth: 5,
-    '5th': 5
-  };
-
-  if (ideaMatch) {
-    return parseInt(ideaMatch[1]);
-  }
-
-  for (const [word, num] of Object.entries(wordSelections)) {
-    if (lowerMessage.includes(word)) {
-      return num;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Helper: Check if user wants to go back to ideas
- */
-function isBackToIdeasRequest(lowerMessage) {
-  const backPhrases = ['different', 'another', 'other idea', 'go back', 'new idea', 'try again'];
-  return backPhrases.some(phrase => lowerMessage.includes(phrase));
-}
-
-/**
- * Helper: Check if user wants to proceed to building
- */
-function isProceedToBuildRequest(lowerMessage) {
-  const buildPhrases = [
-    'proceed',
-    'next step',
-    "let's build",
-    'start building',
-    'help me',
-    'create',
-    'make'
-  ];
-  return buildPhrases.some(phrase => lowerMessage.includes(phrase));
-}
-
-/**
- * Helper: Handle agent-specific response logic
- */
-async function handleAgentResponse(agent, sessionId, message, lowerMessage) {
-  switch (agent.name) {
-    case 'Onboarding':
-      return await agent.chat(sessionId, message);
-
-    case 'IdeaGenerator': {
-      const existingIdeas = await memoryQueries.get(sessionId, 'GeneratedIdeas');
-      if (existingIdeas?.generated) {
-        return await agent.chat(sessionId, message);
-      } else {
-        const response = await agent.generate(sessionId);
-        await memoryQueries.set(sessionId, 'GeneratedIdeas', { generated: true });
-        await orchestrator.addMilestone(sessionId, 'ideas_generated');
-        return response;
-      }
-    }
-
-    case 'Validator': {
-      const validationDone = await agent.getMemory(sessionId, 'Validator');
-      if (!validationDone?.validated) {
-        return await agent.validate(sessionId);
-      } else {
-        return await agent.chat(sessionId, message);
-      }
-    }
-
-    case 'Builder': {
-      if (lowerMessage.includes('prd') || lowerMessage.includes('requirements')) {
-        const response = await agent.generatePRD(sessionId);
-        await orchestrator.addMilestone(sessionId, 'prd_created');
-        return response;
-      } else if (lowerMessage.includes('landing') || lowerMessage.includes('page')) {
-        return await agent.generateLandingPage(sessionId);
-      } else {
-        return await agent.chat(sessionId, message);
-      }
-    }
-
-    default:
-      return await agent.chat(sessionId, message);
-  }
-}
-
-/**
  * Stream message to agent with SSE
  * POST /api/chat/stream
  */
 router.post(
   '/stream',
+  authenticate,
   validateBody(schemas.sendMessage),
   asyncHandler(async (req, res) => {
+    const { userId } = req;
     const { sessionId, message, agent: agentName } = req.body;
 
     // Set up SSE
@@ -404,8 +312,10 @@ router.get(
  */
 router.post(
   '/select-idea',
+  authenticate,
   validateBody(schemas.selectIdea),
   asyncHandler(async (req, res) => {
+    const { userId } = req;
     const { sessionId, ideaNumber, ideaText } = req.body;
 
     const agent = getAgent('ideaGenerator');

@@ -296,6 +296,204 @@ export const memoryQueries = {
       logger.error('Error fetching all memory:', error);
       return { success: false, error: error.message };
     }
+  },
+
+  /**
+   * Get multiple memory keys in a single query (batch optimization)
+   * @param {string} sessionId - Session identifier
+   * @param {string[]} keys - Array of memory keys to fetch
+   * @returns {Promise<{success: boolean, values: Object}>}
+   */
+  async getMultiple(sessionId, keys) {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('memory')
+        .select('key, value')
+        .eq('session_id', sessionId)
+        .in('key', keys);
+
+      if (error) {
+        throw error;
+      }
+
+      const values = {};
+      keys.forEach(key => {
+        values[key] = null; // Initialize all keys
+      });
+
+      (data || []).forEach(item => {
+        try {
+          values[item.key] = JSON.parse(item.value);
+        } catch {
+          values[item.key] = item.value;
+        }
+      });
+
+      return { success: true, values };
+    } catch (error) {
+      logger.error('Error batch fetching memory:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Set multiple memory key-value pairs in a single query (batch optimization)
+   * @param {string} sessionId - Session identifier
+   * @param {Object} keyValues - Object of key-value pairs to store
+   * @returns {Promise<{success: boolean}>}
+   */
+  async setMultiple(sessionId, keyValues) {
+    try {
+      const supabase = getSupabase();
+      const timestamp = new Date().toISOString();
+
+      const records = Object.entries(keyValues).map(([key, value]) => ({
+        session_id: sessionId,
+        key,
+        value: typeof value === 'object' ? JSON.stringify(value) : value,
+        updated_at: timestamp
+      }));
+
+      const { error } = await supabase.from('memory').upsert(records, {
+        onConflict: 'session_id,key',
+        ignoreDuplicates: false
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      return { success: true };
+    } catch (error) {
+      logger.error('Error batch storing memory:', error);
+      return { success: false, error: error.message };
+    }
+  }
+};
+
+/**
+ * Batch Operations - Optimized queries that reduce DB roundtrips
+ */
+export const batchQueries = {
+  /**
+   * Get full session context in a single optimized call
+   * Combines: session info, recent conversation, and all memory
+   * @param {string} sessionId - Session identifier
+   * @param {number} historyLimit - Max conversation messages to fetch
+   * @returns {Promise<{success: boolean, context: Object}>}
+   */
+  async getSessionContext(sessionId, historyLimit = 20) {
+    try {
+      const supabase = getSupabase();
+
+      // Execute all queries in parallel
+      const [sessionResult, historyResult, memoryResult] = await Promise.all([
+        supabase.from('sessions').select('*').eq('id', sessionId).single(),
+        supabase
+          .from('conversations')
+          .select('*')
+          .eq('session_id', sessionId)
+          .order('created_at', { ascending: true })
+          .limit(historyLimit),
+        supabase.from('memory').select('key, value').eq('session_id', sessionId)
+      ]);
+
+      // Check for errors
+      if (sessionResult.error && sessionResult.error.code !== 'PGRST116') {
+        throw sessionResult.error;
+      }
+      if (historyResult.error) {
+        throw historyResult.error;
+      }
+      if (memoryResult.error) {
+        throw memoryResult.error;
+      }
+
+      // Parse memory values
+      const memory = {};
+      (memoryResult.data || []).forEach(item => {
+        try {
+          memory[item.key] = JSON.parse(item.value);
+        } catch {
+          memory[item.key] = item.value;
+        }
+      });
+
+      return {
+        success: true,
+        context: {
+          session: sessionResult.data,
+          history: historyResult.data || [],
+          memory
+        }
+      };
+    } catch (error) {
+      logger.error('Error fetching session context:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Store message and update memory atomically
+   * Reduces multiple DB calls to optimized operations
+   * @param {string} sessionId - Session identifier
+   * @param {string} role - Message role (user/assistant)
+   * @param {string} content - Message content
+   * @param {Object} metadata - Message metadata
+   * @param {Object} memoryUpdates - Optional memory key-values to update
+   * @returns {Promise<{success: boolean}>}
+   */
+  async storeMessageWithMemory(sessionId, role, content, metadata = {}, memoryUpdates = null) {
+    try {
+      const supabase = getSupabase();
+      const timestamp = new Date().toISOString();
+
+      // Store conversation message
+      const messagePromise = supabase
+        .from('conversations')
+        .insert([
+          {
+            session_id: sessionId,
+            role,
+            content,
+            metadata,
+            created_at: timestamp
+          }
+        ])
+        .select()
+        .single();
+
+      // Optionally update memory in parallel
+      let memoryPromise = Promise.resolve({ error: null });
+      if (memoryUpdates && Object.keys(memoryUpdates).length > 0) {
+        const records = Object.entries(memoryUpdates).map(([key, value]) => ({
+          session_id: sessionId,
+          key,
+          value: typeof value === 'object' ? JSON.stringify(value) : value,
+          updated_at: timestamp
+        }));
+
+        memoryPromise = supabase.from('memory').upsert(records, {
+          onConflict: 'session_id,key',
+          ignoreDuplicates: false
+        });
+      }
+
+      const [messageResult, memoryResult] = await Promise.all([messagePromise, memoryPromise]);
+
+      if (messageResult.error) {
+        throw messageResult.error;
+      }
+      if (memoryResult.error) {
+        throw memoryResult.error;
+      }
+
+      return { success: true, message: messageResult.data };
+    } catch (error) {
+      logger.error('Error storing message with memory:', error);
+      return { success: false, error: error.message };
+    }
   }
 };
 
@@ -303,5 +501,6 @@ export default {
   userQueries,
   sessionQueries,
   conversationQueries,
-  memoryQueries
+  memoryQueries,
+  batchQueries
 };

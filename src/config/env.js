@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'OPENAI_API_KEY'];
+const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'OPENAI_API_KEY', 'JWT_SECRET'];
 
 const missing = required.filter(key => !process.env[key]);
 
@@ -44,7 +44,7 @@ export const config = {
 
   // Security
   jwt: {
-    secret: process.env.JWT_SECRET || 'change-me-in-production'
+    secret: process.env.JWT_SECRET
   },
 
   // Rate Limiting
