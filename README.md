@@ -2,6 +2,8 @@
 
 AI-powered entrepreneurship coaching platform backend built with Node.js, Express, Supabase, and OpenAI.
 
+> **NEW**: 🚀 [Claude-Flow Integration Guide](docs/CLAUDE_FLOW_INTEGRATION_GUIDE.md) - Learn how to use claude-flow for enhanced multi-agent coordination, SPARC methodology, and 2.8-4.4x performance improvements. See [Quick Start](docs/claude-flow-quickstart.md) for 5-minute setup.
+
 ## Features
 
 - 🤖 **Multi-Agent System**: Specialized AI agents for different coaching phases
@@ -312,6 +314,47 @@ npm run build
 
 - **Backend**: Deployed on Render (auto-deploy from `main`)
 - **Frontend**: Pending deployment to Vercel (needs static build setup)
+
+## Claude-Flow Integration
+
+EntreBot is enhanced with [claude-flow](https://github.com/ruvnet/claude-flow) for advanced multi-agent coordination:
+
+### Features
+- 🚀 **SPARC Methodology**: Structured agent development (Specification, Pseudocode, Architecture, Refinement, Completion)
+- ⚡ **2.8-4.4x Performance**: Parallel execution and optimized workflows
+- 🧠 **54 Pre-configured Agents**: Specialized agents for development, testing, GitHub, and more
+- 💾 **Persistent Memory**: Cross-session context management
+- 📊 **Performance Monitoring**: Real-time metrics and bottleneck analysis
+
+### Quick Commands
+
+```bash
+# Create new agent with SPARC TDD
+npx claude-flow@alpha sparc tdd "Create MentorAgent for post-launch coaching"
+
+# List available modes
+npx claude-flow@alpha sparc modes
+
+# Monitor performance
+npx claude-flow@alpha swarm monitor --auto true
+```
+
+### Documentation
+
+- **[Integration Guide](docs/CLAUDE_FLOW_INTEGRATION_GUIDE.md)**: Comprehensive 12,000+ word guide
+- **[Quick Start](docs/claude-flow-quickstart.md)**: Get started in 5 minutes
+- **[Examples](docs/examples/)**: Practical code examples with 4x speedup demos
+
+### Example: Parallel Idea Validation
+
+```javascript
+// Before: 60 seconds (5 ideas × 12s each)
+// After: 15 seconds (all 5 in parallel)
+
+import { ClaudeFlowOrchestrator } from './docs/examples/claude-flow-orchestrator.js';
+const orchestrator = new ClaudeFlowOrchestrator();
+const validations = await orchestrator.validateIdeasInParallel(sessionId, ideas);
+```
 
 ## Future Enhancements
 
