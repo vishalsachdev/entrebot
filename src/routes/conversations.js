@@ -100,7 +100,10 @@ router.get(
 
     const messages = result.messages;
 
-    // Generate summary statistics
+    // Calculate summary statistics
+    const totalChars = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
+    const avgLength = messages.length > 0 ? Math.round(totalChars / messages.length) : 0;
+
     const summary = {
       sessionId,
       totalMessages: messages.length,
@@ -113,13 +116,8 @@ router.get(
       lastMessage: messages[messages.length - 1] || null,
       conversationStarted: messages[0]?.created_at || null,
       lastActivity: messages[messages.length - 1]?.created_at || null,
-      totalCharacters: messages.reduce((sum, m) => sum + (m.content?.length || 0), 0),
-      averageMessageLength:
-        messages.length > 0
-          ? Math.round(
-              messages.reduce((sum, m) => sum + (m.content?.length || 0), 0) / messages.length
-            )
-          : 0
+      totalCharacters: totalChars,
+      averageMessageLength: avgLength
     };
 
     logger.info(`Summary generated for session ${sessionId}: ${summary.totalMessages} messages`);
