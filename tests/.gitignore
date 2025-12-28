@@ -1,0 +1,25 @@
+# =============================================================================
+# Test Directory .gitignore
+# =============================================================================
+
+# Test artifacts
+coverage/
+.nyc_output/
+junit.xml
+test-results/
+
+# IDE/Editor
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# =============================================================================
+# IMPORTANT: .env.test is NOT ignored
+# =============================================================================
+# The .env.test file contains FAKE test credentials and is intentionally
+# tracked in git for CI/CD pipelines. Do NOT add .env.test to this file.
+# =============================================================================

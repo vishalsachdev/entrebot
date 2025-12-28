@@ -11,7 +11,12 @@
     "test:conversations": "jest --config jest.config.routes.js routes/conversations.test.js",
     "test:memory": "jest --config jest.config.routes.js routes/memory.test.js",
     "test:ci": "jest --config jest.config.routes.js --ci --coverage --maxWorkers=2",
-    "test:verbose": "jest --config jest.config.routes.js --verbose"
+    "test:verbose": "jest --config jest.config.routes.js --verbose",
+    "test:unit": "jest --config jest.config.unit.js",
+    "test:unit:watch": "jest --config jest.config.unit.js --watch",
+    "test:unit:coverage": "jest --config jest.config.unit.js --coverage",
+    "test:orchestrator": "jest --config jest.config.unit.js unit/orchestrator/orchestrator.test.js",
+    "test:all": "jest --config jest.config.routes.js && jest --config jest.config.unit.js"
   },
   "devDependencies": {
     "@babel/core": "^7.23.0",

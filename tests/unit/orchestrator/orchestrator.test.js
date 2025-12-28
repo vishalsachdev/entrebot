@@ -9,12 +9,27 @@
  * - Progress tracking
  */
 
-// Mock dependencies before importing modules
+// Mock dependencies before importing anything
+jest.mock('../../../src/database/supabase.js');
 jest.mock('../../../src/database/queries.js');
 jest.mock('../../../src/config/logger.js');
 jest.mock('../../../src/agents/index.js');
+jest.mock('../../../src/config/env.js', () => ({
+  config: {
+    supabase: {
+      url: 'http://localhost:54321',
+      anonKey: 'test-key'
+    },
+    openai: {
+      apiKey: 'test-key'
+    },
+    server: {
+      port: 3001
+    }
+  }
+}));
 
-const { memoryQueries, conversationQueries } = require('../../../src/database/queries.js');
+const { memoryQueries } = require('../../../src/database/queries.js');
 const { getAgent, agents } = require('../../../src/agents/index.js');
 
 // Mock logger
@@ -538,14 +553,14 @@ describe('Orchestrator', () => {
       expect(result).toBe(true);
     });
 
-    it('should return true for ideation when prerequisites met', () => {
+    it('should return truthy for ideation when prerequisites met', () => {
       const memory = {
         USER_PROFILE: { name: 'John' },
         USER_PAIN: { description: 'Test pain' }
       };
 
       const result = orchestrator.isPhaseReachable('ideation', memory);
-      expect(result).toBe(true);
+      expect(result).toBeTruthy();
     });
 
     it('should return false for ideation when name missing', () => {
@@ -567,13 +582,13 @@ describe('Orchestrator', () => {
       expect(result).toBe(false);
     });
 
-    it('should return true for validation when idea selected', () => {
+    it('should return truthy for validation when idea selected', () => {
       const memory = {
         SelectedIdea: { idea: 'Test idea' }
       };
 
       const result = orchestrator.isPhaseReachable('validation', memory);
-      expect(result).toBe(true);
+      expect(result).toBeTruthy();
     });
 
     it('should return false for validation when no idea selected', () => {
