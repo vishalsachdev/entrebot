@@ -157,15 +157,67 @@ export class OnboardingAgent extends BaseAgent {
       // Extract and store information from user messages
       await this.extractAndStoreInfo(sessionId, userMessage, memory);
 
-      // Stream response if callback provided
-      if (onChunk) {
-        return await this.stream(messages, onChunk);
+      // Get updated memory after extraction
+      const updatedMemory = await this.getAllMemory(sessionId);
+      const userPain = updatedMemory.USER_PAIN || {};
+
+      // Check if this is a response to the reflection question
+      // If reflectionAsked is true, mark reflectionReceived
+      if (userPain.reflectionAsked && !userPain.reflectionReceived) {
+        console.log('[chat] Marking reflection as received');
+        userPain.reflectionReceived = true;
+        await this.setMemory(sessionId, 'USER_PAIN', userPain);
       }
 
-      return await this.send(messages);
+      // Calculate depth score to know if we should prompt for reflection
+      const depthScore = await this.calculateDepthScore(userPain);
+
+      // Stream response if callback provided
+      let response;
+      if (onChunk) {
+        response = await this.stream(messages, onChunk);
+      } else {
+        response = await this.send(messages);
+      }
+
+      // After sending response, if depth is sufficient and reflection not asked yet,
+      // mark that reflection question should have been asked
+      if (depthScore >= 2 && !userPain.reflectionAsked) {
+        console.log('[chat] Marking reflectionAsked=true (depthScore:', depthScore, ')');
+        userPain.reflectionAsked = true;
+        await this.setMemory(sessionId, 'USER_PAIN', userPain);
+      }
+
+      return response;
     } catch (error) {
       throw new Error(`Onboarding agent error: ${error.message}`);
     }
+  }
+
+  /**
+   * Calculate depth score for pain point exploration
+   */
+  calculateDepthScore(userPain) {
+    let score = 0;
+    if (userPain.frequency && userPain.frequency !== 'unknown') {
+      score++;
+    }
+    if (userPain.severity) {
+      score++;
+    }
+    if (userPain.currentSolution) {
+      score++;
+    }
+    if (userPain.willingnessSignal) {
+      score++;
+    }
+    if (userPain.affectsOthers && score > 0) {
+      score++;
+    }
+    if (userPain.readyForIdeas) {
+      score += 2;
+    }
+    return score;
   }
 
   /**
@@ -311,6 +363,7 @@ export class OnboardingAgent extends BaseAgent {
   /**
    * Check if onboarding is complete
    * Need name, pain point, AND sufficient depth (multiple follow-ups answered)
+   * CRITICAL: Must wait for reflection response before completing
    */
   async isComplete(sessionId) {
     const userProfile = await this.getMemory(sessionId, 'USER_PROFILE');
@@ -332,28 +385,13 @@ export class OnboardingAgent extends BaseAgent {
     }
 
     // Count depth indicators - need at least 2 for completion
-    // This ensures we've had meaningful follow-up exchanges
-    let depthScore = 0;
-    if (userPain.frequency && userPain.frequency !== 'unknown') {
-      depthScore++;
-    }
-    if (userPain.severity) {
-      depthScore++;
-    }
-    if (userPain.currentSolution) {
-      depthScore++;
-    } // What they do now
-    if (userPain.willingnessSignal) {
-      depthScore++;
-    }
-    // affectsOthers alone shouldn't count - it's often inferred from keywords
-    if (userPain.affectsOthers && depthScore > 0) {
-      depthScore++;
-    }
+    const depthScore = this.calculateDepthScore(userPain);
 
-    // Also check if we have explicit confirmation the user is ready
-    if (userPain.readyForIdeas) {
-      depthScore += 2;
+    // CRITICAL: If reflection was asked but not yet received, don't complete
+    // This prevents transitioning before user answers the reflection question
+    if (userPain.reflectionAsked && !userPain.reflectionReceived) {
+      console.log('[isComplete] Waiting for reflection response, returning false');
+      return false;
     }
 
     const isComplete = depthScore >= 2;
