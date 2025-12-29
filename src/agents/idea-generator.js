@@ -167,8 +167,10 @@ The user is ready for business ideas. Generate 3 distinct ideas using the struct
         m => m.role === 'assistant' && m.content?.includes('Before I share ideas')
       );
 
-      // Detect "no ideas" type responses - bypass LLM and generate directly
+      // Detect "no ideas" OR "ready to proceed" responses - bypass LLM and generate directly
       const lowerMessage = userMessage.toLowerCase();
+
+      // Patterns indicating user has no ideas
       const noIdeasPatterns = [
         /no ideas?/i,
         /none/i,
@@ -181,11 +183,36 @@ The user is ready for business ideas. Generate 3 distinct ideas using the struct
         /not sure/i,
         /can'?t think/i
       ];
-      const userHasNoIdeas = noIdeasPatterns.some(p => p.test(lowerMessage));
 
-      // If coaching question was asked AND user has no ideas, generate directly
-      if (alreadyAskedForIdeas && userHasNoIdeas) {
-        return await this.generateIdeas(sessionId, 'User has no existing ideas', onChunk);
+      // Patterns indicating user wants to proceed (skip coaching question)
+      const readyToGoPatterns = [
+        /yes/i,
+        /let'?s/i,
+        /go ahead/i,
+        /proceed/i,
+        /ready/i,
+        /show me/i,
+        /generate/i,
+        /explore/i,
+        /please/i,
+        /sure/i,
+        /ok/i,
+        /okay/i
+      ];
+
+      // Check if user is sharing their OWN idea (we should explore it, not generate)
+      const userSharingIdea =
+        lowerMessage.includes('i thought') ||
+        lowerMessage.includes('my idea') ||
+        lowerMessage.includes('i was thinking') ||
+        lowerMessage.includes('what about');
+
+      const userHasNoIdeas = noIdeasPatterns.some(p => p.test(lowerMessage));
+      const userWantsToGo = readyToGoPatterns.some(p => p.test(lowerMessage));
+
+      // If coaching question was asked AND user isn't sharing their own idea, generate directly
+      if (alreadyAskedForIdeas && !userSharingIdea && (userHasNoIdeas || userWantsToGo)) {
+        return await this.generateIdeas(sessionId, 'User ready for ideas', onChunk);
       }
 
       // Build messages with history
