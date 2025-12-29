@@ -447,8 +447,33 @@ node scripts/chat-test.js --auto --iteration 2
 - When testing rapidly, add delays between test suites to avoid API rate limits
 
 **Next Focus:**
-- Clean up console.log statements in onboarding.js (18 lint warnings)
 - Phase 5: Advanced coaching features (follow-up questions)
+
+### 2025-12-29
+**Completed:**
+- Fixed lint warnings (0 warnings now) - added `varsIgnorePattern` to ESLint
+- Added semantic message classification to onboarding agent
+- Fixed severity overwrite bug ("#1" idea selection was overwriting severity rating)
+- Fixed description extraction (was too strict with 5-word minimum)
+- All 21 API tests pass
+
+**Key Change - Semantic Message Classification:**
+New `classifyMessage()` method returns: `'rating'`, `'selection'`, `'affirmative'`, `'frequency'`, `'greeting'`, or `'content'`
+- Severity only extracted from `'rating'` type (prevents "#1" from being mistaken as severity)
+- Description only stored from `'content'` type with >=15 chars (not word counts)
+- More robust than hard-coded word count heuristics
+
+**Commits:**
+- `d6744ee` - fix: lint cleanup and test rate limiting fixes
+- `6bdf25a` - fix: semantic message classification for robust extraction
+
+**Key Pattern Learned:**
+- Semantic message classification > hard-coded word counts for NLP extraction
+- Classify intent first, then extract - prevents cross-contamination between data fields
+
+**Next Focus:**
+- Phase 5: Advanced coaching features (follow-up questions, progress tracking)
+- Consider adding unit tests for `classifyMessage()` function
 
 ---
 
