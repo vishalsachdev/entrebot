@@ -11,7 +11,7 @@
     "semi": ["error", "always"],
     "quotes": ["error", "single", { "avoidEscape": true }],
     "indent": ["error", 2, { "SwitchCase": 1 }],
-    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
     "no-console": ["warn", { "allow": ["warn", "error"] }],
     "eqeqeq": ["error", "always"],
     "curly": ["error", "all"],

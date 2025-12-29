@@ -162,7 +162,8 @@ export class OnboardingAgent extends BaseAgent {
       const userPain = updatedMemory.USER_PAIN || {};
 
       // Calculate depth score to know if we should prompt for reflection
-      const depthScore = await this.calculateDepthScore(userPain);
+      // Note: depthScore was used for decision logic but now we use reflectionAsked/reflectionReceived flags
+      const _depthScore = await this.calculateDepthScore(userPain);
 
       // Track turn numbers for proper reflection question/answer sequencing
       // reflectionAskedOnTurn: the turn when the agent asked the reflection

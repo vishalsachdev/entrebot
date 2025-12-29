@@ -492,24 +492,32 @@ async function runAllTests() {
     process.exit(1);
   }
 
-  // Run all tests
+  // Run all tests with delays to avoid rate limiting
+  const delay = ms => new Promise(r => setTimeout(r, ms));
+
   await testFreshOnboardingFlow();
   console.log('');
+  await delay(3000); // 3s delay between test suites
 
   await testIdeationWithYes();
   console.log('');
+  await delay(3000);
 
   await testIdeationNoIdeas();
   console.log('');
+  await delay(3000);
 
   await testIdeaSelection();
   console.log('');
+  await delay(3000);
 
   await testValidatorContent();
   console.log('');
+  await delay(3000);
 
   await testProceedToBuild();
   console.log('');
+  await delay(3000);
 
   await testBackToIdeas();
   console.log('');
