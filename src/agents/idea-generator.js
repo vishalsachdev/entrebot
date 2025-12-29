@@ -162,9 +162,14 @@ The user is ready for business ideas. Generate 3 distinct ideas using the struct
       const userPain = await this.getMemory(sessionId, 'USER_PAIN');
       const userProfile = await this.getMemory(sessionId, 'USER_PROFILE');
 
-      // Check if we already asked the coaching question
+      // Check if we already asked the coaching question OR generated ideas directly
       const alreadyAskedForIdeas = conversationHistory.some(
         m => m.role === 'assistant' && m.content?.includes('Before I share ideas')
+      );
+
+      // Check if ideas have already been generated (numbered list format)
+      const ideasAlreadyGenerated = conversationHistory.some(
+        m => m.role === 'assistant' && m.content?.match(/^1\.\s+\w+.*\n.*2\.\s+\w+/m) // Matches "1. Name...\n...2. Name"
       );
 
       // Detect "no ideas" OR "ready to proceed" responses - bypass LLM and generate directly
@@ -218,10 +223,15 @@ The user is ready for business ideas. Generate 3 distinct ideas using the struct
       // Build messages with history
       const messages = [];
 
-      // Add context - if coaching question was asked, tell LLM not to repeat
-      const coachingNote = alreadyAskedForIdeas
-        ? ' You already asked "Before I share ideas..." - do NOT ask again. Generate ideas or respond to what the user said.'
-        : '';
+      // Add context - if coaching question was asked OR ideas already generated, don't ask coaching question
+      let coachingNote = '';
+      if (ideasAlreadyGenerated) {
+        coachingNote =
+          ' Ideas have already been presented. Do NOT ask "Before I share ideas..." or generate new ideas unless specifically requested. Focus on helping the user with their selection or questions about the existing ideas.';
+      } else if (alreadyAskedForIdeas) {
+        coachingNote =
+          ' You already asked "Before I share ideas..." - do NOT ask again. Generate ideas or respond to what the user said.';
+      }
       messages.push({
         role: 'system',
         content: `Context: User "${userProfile?.name || 'User'}" has pain point: "${userPain?.description || 'unknown'}"${coachingNote}`

@@ -114,17 +114,43 @@ export async function handleAgentResponse(agent, sessionId, message, lowerMessag
           m => m.role === 'assistant' && m.content?.includes('Before I share ideas')
         );
 
-      if (existingIdeas?.generated || hasAskedForIdeas) {
+      if (existingIdeas?.value?.generated || hasAskedForIdeas) {
         // Set the flag if it wasn't set (recovery from interrupted flow)
-        if (!existingIdeas?.generated && hasAskedForIdeas) {
+        if (!existingIdeas?.value?.generated && hasAskedForIdeas) {
           await memoryQueries.set(sessionId, 'GeneratedIdeas', { generated: true });
         }
         return await agent.chat(sessionId, message);
       } else {
-        const response = await agent.generate(sessionId);
-        await memoryQueries.set(sessionId, 'GeneratedIdeas', { generated: true });
-        await orchestrator.addMilestone(sessionId, 'ideas_generated');
-        return response;
+        // Check if user is ready to go (skip coaching question for "yes", "let's explore", etc.)
+        const readyToGoPatterns = [
+          /^yes\b/i,
+          /let'?s/i,
+          /go ahead/i,
+          /proceed/i,
+          /ready/i,
+          /show me/i,
+          /generate/i,
+          /explore/i,
+          /^please\b/i,
+          /^sure\b/i,
+          /^ok\b/i,
+          /^okay\b/i
+        ];
+        const userIsReady = readyToGoPatterns.some(p => p.test(lowerMessage));
+
+        if (userIsReady) {
+          // Skip coaching question - user already confirmed they want ideas
+          const response = await agent.generateIdeas(sessionId, 'User ready for ideas');
+          await memoryQueries.set(sessionId, 'GeneratedIdeas', { generated: true });
+          await orchestrator.addMilestone(sessionId, 'ideas_generated');
+          return response;
+        } else {
+          // Ask coaching question first
+          const response = await agent.generate(sessionId);
+          await memoryQueries.set(sessionId, 'GeneratedIdeas', { generated: true });
+          await orchestrator.addMilestone(sessionId, 'ideas_generated');
+          return response;
+        }
       }
     }
 

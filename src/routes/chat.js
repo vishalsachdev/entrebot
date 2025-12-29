@@ -106,7 +106,7 @@ router.post(
 
     // Handle idea selection (works across phases)
     const existingIdeas = await memoryQueries.get(sessionId, 'GeneratedIdeas');
-    if (existingIdeas?.generated) {
+    if (existingIdeas?.value?.generated) {
       const selectedNumber = parseIdeaSelection(message);
       if (selectedNumber) {
         const ideaGenerator = getAgent('ideaGenerator');
