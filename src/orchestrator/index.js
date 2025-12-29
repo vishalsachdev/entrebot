@@ -151,7 +151,27 @@ export class Orchestrator {
    * Get current journey state for a session
    */
   async getState(sessionId) {
-    const memory = await memoryQueries.getAll(sessionId);
+    // Retry logic for transient DB errors (common when Render wakes from sleep)
+    let memory;
+    let retries = 2;
+
+    while (retries >= 0) {
+      memory = await memoryQueries.getAll(sessionId);
+      if (memory.success) {
+        break;
+      }
+
+      if (retries > 0) {
+        logger.warn(`Memory query failed, retrying... (${retries} left)`);
+        await new Promise(r => setTimeout(r, 500)); // Wait 500ms before retry
+      }
+      retries--;
+    }
+
+    if (!memory.success) {
+      logger.error(`Memory query failed after retries for session ${sessionId}: ${memory.error}`);
+    }
+
     const allMemory = memory.success ? memory.memory : {};
 
     // Get or initialize journey state

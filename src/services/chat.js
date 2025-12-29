@@ -102,8 +102,23 @@ export async function handleAgentResponse(agent, sessionId, message, lowerMessag
       return await agent.chat(sessionId, message);
 
     case 'IdeaGenerator': {
+      // Check if ideas have already been generated to avoid duplicate "Before I share ideas..." messages
       const existingIdeas = await memoryQueries.get(sessionId, 'GeneratedIdeas');
-      if (existingIdeas?.generated) {
+
+      // Also check conversation history as a fallback - if we've asked this before, use chat()
+      const { conversationQueries } = await import('../database/queries.js');
+      const history = await conversationQueries.getHistory(sessionId, 10);
+      const hasAskedForIdeas =
+        history.success &&
+        history.messages?.some(
+          m => m.role === 'assistant' && m.content?.includes('Before I share ideas')
+        );
+
+      if (existingIdeas?.generated || hasAskedForIdeas) {
+        // Set the flag if it wasn't set (recovery from interrupted flow)
+        if (!existingIdeas?.generated && hasAskedForIdeas) {
+          await memoryQueries.set(sessionId, 'GeneratedIdeas', { generated: true });
+        }
         return await agent.chat(sessionId, message);
       } else {
         const response = await agent.generate(sessionId);
