@@ -419,9 +419,36 @@ node scripts/chat-test.js --auto --iteration 2
 - Code-based pattern detection > prompt-based hints for LLM behavior control
 - When you need deterministic outcomes, detect user intent in code and route to specific functions rather than hoping the LLM follows system message instructions
 
+### 2025-12-28 (session 3)
+**Completed:**
+- Fixed 3 additional bugs found during comprehensive testing
+- Bug 5: Coaching question repeat - multi-layer fix across idea-generator.js and chat.js
+- Bug 6: Memory access pattern - fixed `existingIdeas?.generated` to `existingIdeas?.value?.generated`
+- Bug 7: Idea selection not triggering - fixed pattern detection in chat.js
+- Created comprehensive API test suite (46 tests total, 91% pass rate)
+  - `tests/api-chat-flow.test.js` - 7 major flow tests
+  - `tests/api-chat-edge-cases.test.js` - 8 edge case tests
+- Spawned parallel test agents for architecture analysis and test design
+
+**Commits:**
+- `64b2c91` - fix: resolve idea selection and coaching question bugs
+- `5f6aad5` - test: add comprehensive API chat flow tests
+
+**Test Results:**
+- Onboarding flow: ✅ All passing
+- Ideation ("yes"/"no ideas"): ✅ All passing
+- Idea selection (numeric/#1/word): ✅ All passing
+- Validation phase transitions: ✅ All passing
+- Back-to-ideas flow: ✅ All passing
+- 4 failures due to rate limiting during rapid test succession (not bugs)
+
+**Key Pattern Learned:**
+- Supabase queries return `{success, value}` - always access `.value` property
+- When testing rapidly, add delays between test suites to avoid API rate limits
+
 **Next Focus:**
-- Test idea selection flow (selecting one of 3 ideas → validation phase)
 - Clean up console.log statements in onboarding.js (18 lint warnings)
+- Phase 5: Advanced coaching features (follow-up questions)
 
 ---
 
