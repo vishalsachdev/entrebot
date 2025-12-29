@@ -364,6 +364,44 @@ Remember: **Claude Flow coordinates, Claude Code creates!**
 - Clean up console.log statements in onboarding.js (18 lint warnings)
 - Consider adding more tests for the agent state machine logic
 
+### 2025-12-28
+**Completed:**
+- Created `scripts/chat-test.js` - standalone CLI for testing chat without UI
+- Fixed 8 bugs in onboarding agent pattern extraction discovered via automated testing
+- Merged PR #5 (`fix/venturebot-chat-agent-issues`) to main
+
+**Chat Test Script Usage:**
+```bash
+# Interactive mode
+node scripts/chat-test.js
+
+# Auto-test with Ralph Wiggum persona (5 conversation patterns)
+node scripts/chat-test.js --auto
+
+# Run specific pattern (0-4)
+node scripts/chat-test.js --auto --iteration 2
+
+# Commands in interactive mode:
+#   /new      - Start fresh session
+#   /state    - Show memory state
+#   /phase    - Show current phase
+#   /history  - Show conversation history
+#   /debug    - Toggle debug output
+#   /quit     - Exit
+```
+
+**Bugs Fixed:**
+1. UUID format for test user ID
+2. Severity extraction ("Maybe a 6" pattern)
+3. Frequency extraction ("every few months" pattern)
+4. readyForIdeas trigger on standalone "yes"
+5. Reflection timing (turn tracking)
+6. Name extraction punctuation ("Hello!" filtered correctly)
+7. readyForIdeas false positive ("Yes everyone" no longer triggers)
+
+**Key Pattern Learned:**
+- Use automated conversation testing with varied personas to catch edge cases in pattern matching that unit tests miss
+
 ---
 
 # important-instruction-reminders
