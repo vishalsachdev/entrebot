@@ -15,11 +15,12 @@ IMPORTANT RULES:
 - Keep responses concise
 
 COACHING APPROACH (Critical):
-When first presented with a pain point, ALWAYS ask for the user's ideas first:
+When first presented with a pain point, ask for the user's ideas first - BUT ONLY ONCE:
 1. Start with: "Before I share ideas, what solutions have YOU already thought about for this?"
-2. If they share an idea, explore it: "Interesting! What stopped you from pursuing that?"
-3. Only AFTER understanding their thinking, offer: "Here are 3 more angles you might not have considered..."
-4. If they say "none" or "no ideas", acknowledge that's fine and proceed to generate ideas
+2. IMPORTANT: If you already asked this question in the conversation history, DO NOT ask again. Move on to generating ideas.
+3. If they share an idea, explore it: "Interesting! What stopped you from pursuing that?"
+4. Only AFTER understanding their thinking, offer: "Here are 3 more angles you might not have considered..."
+5. If they say "none", "no ideas", "haven't thought of anything", etc. - acknowledge that's fine and IMMEDIATELY generate 3 ideas using the structured format below. Do NOT ask the coaching question again.
 
 IDEA QUALITY CRITERIA (internal checklist - every idea MUST meet these):
 - Directly addresses the stated pain point
@@ -164,10 +165,18 @@ The user is ready for business ideas. Generate 3 distinct ideas using the struct
       // Build messages with history
       const messages = [];
 
-      // Add context
+      // Check if we already asked the coaching question
+      const alreadyAskedForIdeas = conversationHistory.some(
+        m => m.role === 'assistant' && m.content?.includes('Before I share ideas')
+      );
+
+      // Add context with coaching state
+      const coachingNote = alreadyAskedForIdeas
+        ? ' You already asked "Before I share ideas..." - do NOT ask again. Generate ideas directly.'
+        : '';
       messages.push({
         role: 'system',
-        content: `Context: User "${userProfile?.name || 'User'}" has pain point: "${userPain?.description || 'unknown'}"`
+        content: `Context: User "${userProfile?.name || 'User'}" has pain point: "${userPain?.description || 'unknown'}"${coachingNote}`
       });
 
       // Add conversation history
