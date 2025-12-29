@@ -402,6 +402,27 @@ node scripts/chat-test.js --auto --iteration 2
 **Key Pattern Learned:**
 - Use automated conversation testing with varied personas to catch edge cases in pattern matching that unit tests miss
 
+### 2025-12-28 (continued)
+**Completed:**
+- Fixed 4 critical IdeaGenerator agent bugs discovered during live testing at entrebot.vercel.app
+- Bug 1: Phase state defaults to 'discovery' on DB errors - added retry logic in orchestrator
+- Bug 2: GeneratedIdeas flag race condition - added conversation history fallback check
+- Bug 3: Duplicate 'Before I share ideas' messages - added `alreadyAskedForIdeas` history check
+- Bug 4: LLM repeats coaching question - added code-based pattern detection to bypass LLM for "no ideas" responses
+
+**Key Files Modified:**
+- `src/agents/idea-generator.js` - Added `noIdeasPatterns` regex array and bypass logic in `chat()` method
+- `src/services/chat.js` - Added conversation history check for coaching question
+- `src/orchestrator/index.js` - Added retry logic for transient DB errors
+
+**Key Pattern Learned:**
+- Code-based pattern detection > prompt-based hints for LLM behavior control
+- When you need deterministic outcomes, detect user intent in code and route to specific functions rather than hoping the LLM follows system message instructions
+
+**Next Focus:**
+- Test idea selection flow (selecting one of 3 ideas → validation phase)
+- Clean up console.log statements in onboarding.js (18 lint warnings)
+
 ---
 
 # important-instruction-reminders
