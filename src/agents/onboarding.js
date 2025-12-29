@@ -243,11 +243,58 @@ export class OnboardingAgent extends BaseAgent {
   }
 
   /**
+   * Classify message type for context-aware extraction
+   * Returns: 'rating', 'affirmative', 'frequency', 'greeting', 'selection', or 'content'
+   */
+  classifyMessage(message) {
+    const lower = message.toLowerCase().trim();
+
+    // Is it just a number or rating format (likely a severity rating)?
+    if (
+      /^\d+$/.test(lower) ||
+      /^(?:like\s+)?(?:a\s+)?\d+(?:\s*(?:out of|\/)\s*10)?$/i.test(lower)
+    ) {
+      return 'rating';
+    }
+
+    // Is it an idea selection? (#1, "the first one", etc.)
+    if (
+      /^#?\d$|^(?:the\s+)?(?:first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th)\b/i.test(lower)
+    ) {
+      return 'selection';
+    }
+
+    // Is it a simple affirmative/negative?
+    if (/^(yes|yeah|yep|sure|ok|okay|no|nope|nah)(\s*(please|thanks|!|,)?)?$/i.test(lower)) {
+      return 'affirmative';
+    }
+
+    // Is it primarily a frequency response?
+    if (
+      /^(every|daily|weekly|monthly|once|twice|few times|sometimes|rarely|often|all the time)\b/i.test(
+        lower
+      )
+    ) {
+      return 'frequency';
+    }
+
+    // Is it a greeting?
+    if (/^(hi|hello|hey|howdy|greetings)\b/i.test(lower) && lower.length < 30) {
+      return 'greeting';
+    }
+
+    // Otherwise, it's likely substantive content (pain description, explanation, etc.)
+    return 'content';
+  }
+
+  /**
    * Extract and store user information from messages
+   * Uses semantic classification instead of hard-coded word counts
    */
   async extractAndStoreInfo(sessionId, userMessage, memory) {
     const message = userMessage.toLowerCase().trim();
     const originalMessage = userMessage.trim();
+    const messageType = this.classifyMessage(originalMessage);
 
     // Extract name if not already stored
     if (!memory.USER_PROFILE?.name) {
@@ -317,7 +364,6 @@ export class OnboardingAgent extends BaseAgent {
     // We now track multiple dimensions of the pain point as the conversation progresses
     if (memory.USER_PROFILE?.name) {
       const existingPain = memory.USER_PAIN || {};
-      const words = message.split(/\s+/);
 
       // Extract frequency if mentioned
       const frequencyPatterns = [
@@ -335,15 +381,18 @@ export class OnboardingAgent extends BaseAgent {
       }
 
       // Extract severity if mentioned (scale of 1-10)
-      // Patterns: "6 out of 10", "6/10", "like a 6", "about a 6", "maybe a 6", "maybe 6", just "6" in short responses
-      const severityMatch =
-        message.match(/(\d+)\s*(?:out of|\/)\s*10/i) ||
-        message.match(/(?:like|about|maybe)\s+(?:a\s+)?(\d+)/i) ||
-        (message.split(/\s+/).length <= 4 && message.match(/\b(\d+)\b/));
-      if (severityMatch) {
-        const severity = parseInt(severityMatch[1]);
-        if (severity >= 1 && severity <= 10) {
-          existingPain.severity = severity;
+      // Use semantic classification: only extract from 'rating' type messages
+      // This prevents "#1" idea selection or other numbers from being misinterpreted
+      if (!existingPain.severity && messageType === 'rating') {
+        const severityMatch =
+          message.match(/(\d+)\s*(?:out of|\/)\s*10/i) ||
+          message.match(/(?:like|about|maybe)\s+(?:a\s+)?(\d+)/i) ||
+          message.match(/\b(\d+)\b/);
+        if (severityMatch) {
+          const severity = parseInt(severityMatch[1]);
+          if (severity >= 1 && severity <= 10) {
+            existingPain.severity = severity;
+          }
         }
       }
 
@@ -381,8 +430,10 @@ export class OnboardingAgent extends BaseAgent {
         existingPain.readyForIdeas = true;
       }
 
-      // Store initial pain description if not already stored and response is substantial
-      if (!existingPain.description && words.length >= 5) {
+      // Store initial pain description if not already stored
+      // Use semantic classification: only 'content' type messages with meaningful length
+      // This is more robust than hard-coded word counts
+      if (!existingPain.description && messageType === 'content' && originalMessage.length >= 15) {
         existingPain.description = originalMessage;
         existingPain.category = 'unknown'; // Will be refined by the agent
       }
