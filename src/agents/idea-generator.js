@@ -162,17 +162,38 @@ The user is ready for business ideas. Generate 3 distinct ideas using the struct
       const userPain = await this.getMemory(sessionId, 'USER_PAIN');
       const userProfile = await this.getMemory(sessionId, 'USER_PROFILE');
 
-      // Build messages with history
-      const messages = [];
-
       // Check if we already asked the coaching question
       const alreadyAskedForIdeas = conversationHistory.some(
         m => m.role === 'assistant' && m.content?.includes('Before I share ideas')
       );
 
-      // Add context with coaching state
+      // Detect "no ideas" type responses - bypass LLM and generate directly
+      const lowerMessage = userMessage.toLowerCase();
+      const noIdeasPatterns = [
+        /no ideas?/i,
+        /none/i,
+        /haven'?t thought/i,
+        /don'?t have any/i,
+        /nothing/i,
+        /not really/i,
+        /just been dealing/i,
+        /no clue/i,
+        /not sure/i,
+        /can'?t think/i
+      ];
+      const userHasNoIdeas = noIdeasPatterns.some(p => p.test(lowerMessage));
+
+      // If coaching question was asked AND user has no ideas, generate directly
+      if (alreadyAskedForIdeas && userHasNoIdeas) {
+        return await this.generateIdeas(sessionId, 'User has no existing ideas', onChunk);
+      }
+
+      // Build messages with history
+      const messages = [];
+
+      // Add context - if coaching question was asked, tell LLM not to repeat
       const coachingNote = alreadyAskedForIdeas
-        ? ' You already asked "Before I share ideas..." - do NOT ask again. Generate ideas directly.'
+        ? ' You already asked "Before I share ideas..." - do NOT ask again. Generate ideas or respond to what the user said.'
         : '';
       messages.push({
         role: 'system',
@@ -202,7 +223,7 @@ The user is ready for business ideas. Generate 3 distinct ideas using the struct
         /fifth|5th|number 5|#5|five\b/i
       ];
 
-      const lowerMessage = userMessage.toLowerCase();
+      // lowerMessage already defined above
       for (let i = 0; i < selectionPatterns.length; i++) {
         if (selectionPatterns[i].test(lowerMessage) || lowerMessage.includes(`${i + 1}`)) {
           // User selected an idea - store it and signal completion
