@@ -61,6 +61,12 @@ export interface Milestone {
   priority: 'low' | 'medium' | 'high';
 }
 
+export interface AgentPrerequisite {
+  memoryKey: string;
+  label: string;
+  description: string;
+}
+
 export interface Agent {
   id: string;
   name: string;
@@ -69,6 +75,9 @@ export interface Agent {
   personality: AgentPersonality;
   availability: 'available' | 'busy' | 'offline';
   recommendedFor: JourneyPhase[];
+  prerequisites?: AgentPrerequisite[];
+  prerequisitesMet?: boolean;
+  missingPrerequisites?: AgentPrerequisite[];
 }
 
 export interface AgentPersonality {
@@ -116,7 +125,14 @@ export interface Message {
     agent?: string;
     phase?: string;
     milestone?: string;
+    isTransition?: boolean;
+    fromAgent?: string;
+    toAgent?: string;
   };
+  // Message editing support
+  isEdited?: boolean;
+  editedAt?: Date;
+  originalContent?: string;
 }
 
 // Database Model types

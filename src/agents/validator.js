@@ -96,7 +96,23 @@ export class ValidatorAgent extends BaseAgent {
       const userPain = await this.getMemory(sessionId, 'USER_PAIN');
 
       if (!selectedIdea?.idea) {
-        throw new Error('No idea selected. Please select an idea first.');
+        // Return a helpful guidance message instead of throwing an error
+        const guidanceMessage = `I'd love to help validate your business idea, but I don't see one selected yet.
+
+Here's how to get started:
+
+1. First, chat with the Onboarding agent to share what problems frustrate you
+2. Then, the Idea Generator will help brainstorm potential business ideas
+3. Once you select an idea you like, come back here and I'll give you a thorough market validation
+
+Would you like to start with the Onboarding agent to discover your pain points? Or if you've already generated ideas, head to the Idea Generator to select one.`;
+
+        // Stream or return the guidance message
+        if (onChunk) {
+          onChunk(guidanceMessage);
+          return guidanceMessage;
+        }
+        return guidanceMessage;
       }
 
       const messages = [

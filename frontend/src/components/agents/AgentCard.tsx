@@ -1,5 +1,14 @@
 import { motion } from 'framer-motion';
-import { Lightbulb, ShieldCheck, Target, Hammer, TrendingUp, Check } from 'lucide-react';
+import {
+  Lightbulb,
+  ShieldCheck,
+  Target,
+  Hammer,
+  TrendingUp,
+  Check,
+  AlertCircle,
+  UserPlus,
+} from 'lucide-react';
 import { Card, CardContent, Badge } from '../ui';
 import { cn } from '../../utils/cn';
 import type { Agent } from '../../types';
@@ -17,10 +26,20 @@ const iconMap: Record<string, React.ElementType> = {
   target: Target,
   hammer: Hammer,
   'trending-up': TrendingUp,
+  'user-plus': UserPlus,
 };
 
-const AgentCard = ({ agent, isSelected, isRecommended, onClick }: AgentCardProps) => {
+const AgentCard = ({
+  agent,
+  isSelected,
+  isRecommended,
+  onClick,
+}: AgentCardProps) => {
   const Icon = iconMap[agent.personality.icon] || Lightbulb;
+  const hasUnmetPrerequisites =
+    agent.prerequisitesMet === false &&
+    agent.missingPrerequisites &&
+    agent.missingPrerequisites.length > 0;
 
   const availabilityColors = {
     available: 'bg-green-100 text-green-800',
@@ -37,10 +56,9 @@ const AgentCard = ({ agent, isSelected, isRecommended, onClick }: AgentCardProps
       <Card
         className={cn(
           'cursor-pointer transition-all relative',
-          isSelected
-            ? 'ring-2 ring-primary-500 shadow-lg'
-            : 'hover:shadow-md',
-          onClick && 'hover:border-primary-300'
+          isSelected ? 'ring-2 ring-primary-500 shadow-lg' : 'hover:shadow-md',
+          onClick && 'hover:border-primary-300',
+          hasUnmetPrerequisites && 'opacity-75'
         )}
         onClick={onClick}
       >
@@ -50,10 +68,23 @@ const AgentCard = ({ agent, isSelected, isRecommended, onClick }: AgentCardProps
           </div>
         )}
 
-        {isRecommended && (
+        {isRecommended && !hasUnmetPrerequisites && (
           <div className="absolute top-3 left-3">
             <Badge variant="accent" size="sm">
               Recommended
+            </Badge>
+          </div>
+        )}
+
+        {hasUnmetPrerequisites && (
+          <div className="absolute top-3 left-3">
+            <Badge
+              variant="neutral"
+              size="sm"
+              className="bg-amber-100 text-amber-800"
+            >
+              <AlertCircle className="h-3 w-3 mr-1" />
+              Requires: {agent.missingPrerequisites![0].label}
             </Badge>
           </div>
         )}
@@ -63,7 +94,10 @@ const AgentCard = ({ agent, isSelected, isRecommended, onClick }: AgentCardProps
             <div
               className={cn(
                 'h-12 w-12 rounded-lg flex items-center justify-center flex-shrink-0',
-                agent.personality.color.replace('text-', 'bg-').replace('600', '100')
+                agent.personality.color
+                  .replace('text-', 'bg-')
+                  .replace('600', '100'),
+                hasUnmetPrerequisites && 'grayscale'
               )}
             >
               <Icon className={cn('h-6 w-6', agent.personality.color)} />
@@ -75,9 +109,13 @@ const AgentCard = ({ agent, isSelected, isRecommended, onClick }: AgentCardProps
                 <Badge
                   variant="neutral"
                   size="sm"
-                  className={availabilityColors[agent.availability]}
+                  className={
+                    hasUnmetPrerequisites
+                      ? 'bg-amber-100 text-amber-800'
+                      : availabilityColors[agent.availability]
+                  }
                 >
-                  {agent.availability}
+                  {hasUnmetPrerequisites ? 'needs setup' : agent.availability}
                 </Badge>
               </div>
 
@@ -85,13 +123,23 @@ const AgentCard = ({ agent, isSelected, isRecommended, onClick }: AgentCardProps
                 {agent.description}
               </p>
 
+              {/* Prerequisite Warning */}
+              {hasUnmetPrerequisites && (
+                <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-md">
+                  <p className="text-xs text-amber-800">
+                    <AlertCircle className="h-3 w-3 inline mr-1" />
+                    {agent.missingPrerequisites![0].description}
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <div>
                   <p className="text-xs font-medium text-neutral-700 mb-1">
                     Specialization
                   </p>
                   <div className="flex flex-wrap gap-1">
-                    {agent.specialization.slice(0, 3).map((spec) => (
+                    {agent.specialization.slice(0, 3).map(spec => (
                       <Badge key={spec} variant="secondary" size="sm">
                         {spec}
                       </Badge>
@@ -104,7 +152,7 @@ const AgentCard = ({ agent, isSelected, isRecommended, onClick }: AgentCardProps
                     Expertise
                   </p>
                   <div className="flex flex-wrap gap-1">
-                    {agent.personality.expertise.slice(0, 2).map((exp) => (
+                    {agent.personality.expertise.slice(0, 2).map(exp => (
                       <span
                         key={exp}
                         className="text-xs text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded"

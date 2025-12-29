@@ -161,15 +161,31 @@ export class OnboardingAgent extends BaseAgent {
       const updatedMemory = await this.getAllMemory(sessionId);
       const userPain = updatedMemory.USER_PAIN || {};
 
-      // Check if this is a response to the reflection question
-      // If reflectionAsked is true, mark reflectionReceived
-      if (userPain.reflectionAsked && !userPain.reflectionReceived) {
-        userPain.reflectionReceived = true;
-        await this.setMemory(sessionId, 'USER_PAIN', userPain);
-      }
-
       // Calculate depth score to know if we should prompt for reflection
       const depthScore = await this.calculateDepthScore(userPain);
+
+      // Track turn numbers for proper reflection question/answer sequencing
+      // reflectionAskedOnTurn: the turn when the agent asked the reflection
+      // currentTurn: increments each user message
+      const currentTurn = (userPain.turnCount || 0) + 1;
+      userPain.turnCount = currentTurn;
+
+      // Check if this is a response to the reflection question
+      // Only mark reflectionReceived if:
+      // 1. reflectionAsked is true
+      // 2. This turn is AFTER the turn when reflection was asked
+      // 3. reflectionReceived isn't already set
+      if (
+        userPain.reflectionAsked &&
+        userPain.reflectionAskedOnTurn &&
+        currentTurn > userPain.reflectionAskedOnTurn &&
+        !userPain.reflectionReceived
+      ) {
+        userPain.reflectionReceived = true;
+      }
+
+      // Always save turnCount update
+      await this.setMemory(sessionId, 'USER_PAIN', userPain);
 
       // Stream response if callback provided
       let response;
@@ -179,10 +195,17 @@ export class OnboardingAgent extends BaseAgent {
         response = await this.send(messages);
       }
 
-      // After sending response, if depth is sufficient and reflection not asked yet,
-      // mark that reflection question should have been asked
-      if (depthScore >= 2 && !userPain.reflectionAsked) {
+      // Check if the agent's response actually contains the reflection question
+      // Only set reflectionAsked if the response includes the key phrase
+      const reflectionPhrases = ['real reason', 'really bothers', 'deeper reason', 'root cause'];
+      const responseContainsReflection = reflectionPhrases.some(phrase =>
+        response.toLowerCase().includes(phrase)
+      );
+
+      if (responseContainsReflection && !userPain.reflectionAsked) {
         userPain.reflectionAsked = true;
+        userPain.reflectionAskedOnTurn = currentTurn;
+        // Save the updated flags
         await this.setMemory(sessionId, 'USER_PAIN', userPain);
       }
 
@@ -273,13 +296,18 @@ export class OnboardingAgent extends BaseAgent {
         'awesome'
       ];
       const words = originalMessage.split(/\s+/);
-      const firstWord = words[0].toLowerCase();
+      // Strip punctuation from first word for greeting check
+      const firstWordClean = words[0].toLowerCase().replace(/[^a-z]/g, '');
 
       if (words.length <= 2 && originalMessage.length > 1 && originalMessage.length < 30) {
-        if (!greetings.includes(firstWord)) {
-          const name = words[0].charAt(0).toUpperCase() + words[0].slice(1).toLowerCase();
-          await this.setMemory(sessionId, 'USER_PROFILE', { name });
-          return;
+        if (!greetings.includes(firstWordClean)) {
+          // Also strip punctuation from the name
+          const cleanName = words[0].replace(/[^a-zA-Z]/g, '');
+          if (cleanName.length > 0) {
+            const name = cleanName.charAt(0).toUpperCase() + cleanName.slice(1).toLowerCase();
+            await this.setMemory(sessionId, 'USER_PROFILE', { name });
+            return;
+          }
         }
       }
     }
@@ -293,8 +321,8 @@ export class OnboardingAgent extends BaseAgent {
       // Extract frequency if mentioned
       const frequencyPatterns = [
         { pattern: /every\s*day|daily|all the time|constantly/i, value: 'daily' },
-        { pattern: /every\s*week|weekly|few times a week/i, value: 'weekly' },
-        { pattern: /every\s*month|monthly|once a month/i, value: 'monthly' },
+        { pattern: /every\s*week|weekly|few times a week|multiple times a week/i, value: 'weekly' },
+        { pattern: /every\s*(few\s*)?month|monthly|once a month|few months/i, value: 'monthly' },
         { pattern: /occasionally|sometimes|once in a while|rarely/i, value: 'occasionally' }
       ];
 
@@ -306,9 +334,11 @@ export class OnboardingAgent extends BaseAgent {
       }
 
       // Extract severity if mentioned (scale of 1-10)
+      // Patterns: "6 out of 10", "6/10", "like a 6", "about a 6", "maybe a 6", "maybe 6", just "6" in short responses
       const severityMatch =
         message.match(/(\d+)\s*(?:out of|\/)\s*10/i) ||
-        message.match(/(?:like a|about a|maybe)\s*(\d+)/i);
+        message.match(/(?:like|about|maybe)\s+(?:a\s+)?(\d+)/i) ||
+        (message.split(/\s+/).length <= 4 && message.match(/\b(\d+)\b/));
       if (severityMatch) {
         const severity = parseInt(severityMatch[1]);
         if (severity >= 1 && severity <= 10) {
@@ -339,7 +369,14 @@ export class OnboardingAgent extends BaseAgent {
       }
 
       // Track if user explicitly says they're ready for ideas
-      if (/ready|show me|give me ideas|what ideas|generate/i.test(message)) {
+      // Include "yes" and affirmative responses ONLY when standalone or with minimal additions
+      // Avoid false positives like "Yes everyone" (answering a different question)
+      const isStandaloneAffirmative =
+        /^(yes|yeah|yep|sure|ok|okay)(\s*(please|thanks|!|,)?)?$/i.test(message);
+      const hasReadyPhrases =
+        /ready|show me|give me ideas|what ideas|generate|let'?s\s*(do|go|see)/i.test(message);
+
+      if (isStandaloneAffirmative || hasReadyPhrases) {
         existingPain.readyForIdeas = true;
       }
 
@@ -378,10 +415,15 @@ export class OnboardingAgent extends BaseAgent {
     // Count depth indicators - need at least 2 for completion
     const depthScore = this.calculateDepthScore(userPain);
 
-    // CRITICAL: If reflection was asked but not yet received, don't complete
-    // This prevents transitioning before user answers the reflection question
-    if (userPain.reflectionAsked && !userPain.reflectionReceived) {
-      return false;
+    // When depth is sufficient (>=2), we require the reflection exchange to complete
+    // This ensures the user has had a chance to reflect on their pain before moving on
+    if (depthScore >= 2) {
+      // Must have completed the reflection exchange
+      // Either: reflectionReceived is true (normal flow)
+      // OR: user explicitly said they're ready for ideas (shortcut)
+      if (!userPain.reflectionReceived && !userPain.readyForIdeas) {
+        return false;
+      }
     }
 
     return depthScore >= 2;
