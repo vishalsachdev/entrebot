@@ -2,10 +2,11 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgent } from '../../contexts/AgentContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { useStreamingChat } from '../../hooks/useStreamingChat';
-import { Celebration } from '../ui';
+import { Celebration, Toast } from '../ui';
+import type { ToastType } from '../ui/Toast';
 import { cn } from '../../utils/cn';
 import { PhaseProgress, type Progress } from './PhaseProgress';
-import { AgentHeader } from './AgentHeader';
+import { AgentHeader, type CopyFormat } from './AgentHeader';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import type { Message } from '../../types';
@@ -31,7 +32,7 @@ interface ChatInterfaceProps {
 }
 
 const ChatInterface = ({ className }: ChatInterfaceProps) => {
-  const { currentAgent, switchAgent } = useAgent();
+  const { currentAgent, switchAgent, onAgentSwitch } = useAgent();
   const { currentProject } = useProject();
   const { streamMessage, isStreaming, abortStream } = useStreamingChat();
 
@@ -51,6 +52,13 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
     milestone: string;
   } | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [isSwitchingAgent, setIsSwitchingAgent] = useState(false);
+  const [toast, setToast] = useState<{
+    show: boolean;
+    type: ToastType;
+    title: string;
+    message?: string;
+  }>({ show: false, type: 'info', title: '' });
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -59,6 +67,8 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
   const hasGreeted = useRef(false);
   const hasLoadedHistory = useRef(false);
   const prevMilestonesRef = useRef<string[]>([]);
+  // Track completed message IDs to prevent duplicate processing
+  const completedMessageIds = useRef<Set<string>>(new Set());
 
   // Auto-start with Onboarding agent on first visit
   useEffect(() => {
@@ -256,9 +266,46 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
     prevMilestonesRef.current = currentMilestones;
   }, [progress?.milestones]);
 
+  // Listen for agent switches and add transition messages
+  useEffect(() => {
+    const unsubscribe = onAgentSwitch((fromAgent, toAgent) => {
+      // Skip transition message on initial agent set (when fromAgent is null)
+      // or when starting a new chat (messages will be reset anyway)
+      if (!fromAgent || messages.length === 0) return;
+
+      // Show loading state briefly
+      setIsSwitchingAgent(true);
+
+      // Add transition message to chat
+      const transitionMessage: Message = {
+        id: `msg-transition-${Date.now()}`,
+        role: 'system',
+        content: `Switched to ${toAgent.name}`,
+        timestamp: new Date(),
+        status: 'delivered',
+        metadata: {
+          isTransition: true,
+          fromAgent: fromAgent.name,
+          toAgent: toAgent.name,
+        },
+      };
+
+      setMessages(prev => [...prev, transitionMessage]);
+
+      // Clear loading state after a brief delay
+      setTimeout(() => {
+        setIsSwitchingAgent(false);
+        inputRef.current?.focus();
+      }, 300);
+    });
+
+    return unsubscribe;
+  }, [onAgentSwitch, messages.length]);
+
   // Handle sending a message with streaming response
   const handleSend = useCallback(async () => {
-    if (!input.trim() || !currentAgent || isStreaming) return;
+    if (!input.trim() || !currentAgent || isStreaming || isSwitchingAgent)
+      return;
 
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
@@ -306,6 +353,12 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
           );
         },
         onComplete: async (fullContent, responseAgent) => {
+          // Guard against duplicate completion calls
+          if (completedMessageIds.current.has(streamingMsgId)) {
+            return;
+          }
+          completedMessageIds.current.add(streamingMsgId);
+
           setMessages(prev =>
             prev.map(msg =>
               msg.id === streamingMsgId
@@ -379,6 +432,7 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
     input,
     currentAgent,
     isStreaming,
+    isSwitchingAgent,
     streamMessage,
     streamingMessageId,
     ensureSession,
@@ -431,12 +485,108 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
     switchAgent('onboarding');
   }, [switchAgent]);
 
-  const handleCopyLog = useCallback(() => {
-    alert('Chat log copied to clipboard!');
+  // Handle copy log with toast notification
+  const handleCopyLog = useCallback(
+    (format: CopyFormat) => {
+      const formatLabel = format === 'json' ? 'JSON' : 'plain text';
+      setToast({
+        show: true,
+        type: 'success',
+        title: 'Chat log copied!',
+        message: `${messages.length} messages copied as ${formatLabel}`,
+      });
+    },
+    [messages.length]
+  );
+
+  // Helper to show toast notifications
+  const showToast = useCallback(
+    (type: ToastType, title: string, message?: string) => {
+      setToast({ show: true, type, title, message });
+    },
+    []
+  );
+
+  // Close toast handler
+  const handleCloseToast = useCallback(() => {
+    setToast(prev => ({ ...prev, show: false }));
   }, []);
+
+  // Handle editing a message
+  const handleEditMessage = useCallback(
+    async (messageId: string, newContent: string) => {
+      // Update message in local state
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                content: newContent,
+                isEdited: true,
+                editedAt: new Date(),
+                originalContent: msg.originalContent || msg.content,
+              }
+            : msg
+        )
+      );
+
+      // Optionally persist to backend (if we have the API endpoint)
+      if (sessionId) {
+        try {
+          await fetch(`${API_BASE_URL}/conversations/${messageId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: newContent,
+              metadata: { edited: true, editedAt: new Date().toISOString() },
+            }),
+          });
+        } catch (err) {
+          // Silently fail - edit is still saved locally
+          console.error('Failed to persist message edit:', err);
+        }
+      }
+
+      showToast('success', 'Message updated');
+    },
+    [sessionId, showToast]
+  );
+
+  // Handle deleting a message
+  const handleDeleteMessage = useCallback(
+    async (messageId: string) => {
+      // Remove message from local state
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+
+      // Optionally persist to backend (if we have the API endpoint)
+      if (sessionId) {
+        try {
+          await fetch(`${API_BASE_URL}/conversations/${messageId}`, {
+            method: 'DELETE',
+          });
+        } catch (err) {
+          // Silently fail - deletion is still done locally
+          console.error('Failed to persist message deletion:', err);
+        }
+      }
+
+      showToast('info', 'Message deleted');
+    },
+    [sessionId, showToast]
+  );
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
+      {/* Toast Notifications */}
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        title={toast.title}
+        message={toast.message}
+        onClose={handleCloseToast}
+        duration={3000}
+      />
+
       {/* Milestone Celebration */}
       <Celebration
         show={celebration?.show ?? false}
@@ -452,6 +602,7 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
         <AgentHeader
           agent={currentAgent}
           messages={messages}
+          sessionId={sessionId}
           onCopyLog={handleCopyLog}
           onNewChat={handleNewChat}
         />
@@ -464,6 +615,8 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
         currentAgent={currentAgent}
         streamingMessageId={streamingMessageId}
         isTyping={isTyping}
+        onEditMessage={handleEditMessage}
+        onDeleteMessage={handleDeleteMessage}
       />
 
       {/* Input */}

@@ -54,3 +54,6 @@ export { default as MarkdownRenderer } from './MarkdownRenderer';
 
 export { default as Celebration } from './Celebration';
 export type { default as CelebrationProps } from './Celebration';
+
+export { default as Toast } from './Toast';
+export type { ToastProps, ToastType, ToastState } from './Toast';

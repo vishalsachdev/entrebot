@@ -99,6 +99,8 @@ export const useStreamingChat = (): UseStreamingChatReturn => {
 
       let fullContent = '';
       let responseAgent = agent;
+      // Guard to ensure onComplete is only called once
+      let hasCompleted = false;
 
       try {
         const response = await fetch(`${API_BASE_URL}/chat/stream`, {
@@ -170,7 +172,10 @@ export const useStreamingChat = (): UseStreamingChatReturn => {
 
                 // Handle completion
                 if (data.done) {
-                  onComplete?.(fullContent, responseAgent);
+                  if (!hasCompleted) {
+                    hasCompleted = true;
+                    onComplete?.(fullContent, responseAgent);
+                  }
                   setIsStreaming(false);
                   return fullContent;
                 }
@@ -199,7 +204,8 @@ export const useStreamingChat = (): UseStreamingChatReturn => {
               fullContent += data.chunk;
               onChunk(data.chunk, fullContent);
             }
-            if (data.done) {
+            if (data.done && !hasCompleted) {
+              hasCompleted = true;
               onComplete?.(fullContent, responseAgent);
             }
           } catch {
@@ -208,7 +214,11 @@ export const useStreamingChat = (): UseStreamingChatReturn => {
         }
 
         setIsStreaming(false);
-        onComplete?.(fullContent, responseAgent);
+        // Only call onComplete if it hasn't been called yet
+        if (!hasCompleted) {
+          hasCompleted = true;
+          onComplete?.(fullContent, responseAgent);
+        }
         return fullContent;
       } catch (err) {
         // Handle abort
