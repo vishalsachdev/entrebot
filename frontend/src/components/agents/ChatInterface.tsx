@@ -67,6 +67,8 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
   const prevMilestonesRef = useRef<string[]>([]);
   // Track completed message IDs to prevent duplicate processing
   const completedMessageIds = useRef<Set<string>>(new Set());
+  // Guard against concurrent session creation (race condition)
+  const sessionPromiseRef = useRef<Promise<string> | null>(null);
 
   // Auto-start with Onboarding agent on first visit
   useEffect(() => {
@@ -77,10 +79,15 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
   }, [currentAgent, switchAgent]);
 
   // Create a session if we don't have one
+  // Uses ref-based deduplication to prevent race conditions between
+  // greeting storage and first user message
   const ensureSession = useCallback(async (): Promise<string> => {
     if (sessionId) return sessionId;
 
-    try {
+    // If a session creation is already in flight, reuse it
+    if (sessionPromiseRef.current) return sessionPromiseRef.current;
+
+    const createSession = async (): Promise<string> => {
       const userEmail = localStorage.getItem('user')
         ? JSON.parse(localStorage.getItem('user')!).email
         : 'demo@example.com';
@@ -120,9 +127,17 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
         return newSessionId;
       }
       throw new Error(data.error || 'Failed to create session');
+    };
+
+    try {
+      sessionPromiseRef.current = createSession();
+      const result = await sessionPromiseRef.current;
+      return result;
     } catch (err) {
       console.error('Session creation failed:', err);
       throw err;
+    } finally {
+      sessionPromiseRef.current = null;
     }
   }, [sessionId, currentProject?.id, currentAgent?.id]);
 
