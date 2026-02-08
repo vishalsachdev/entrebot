@@ -12,6 +12,18 @@ import { useState, useCallback, useRef } from 'react';
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 /**
+ * Phase transition metadata from backend
+ */
+export interface PhaseTransition {
+  phaseChanged?: boolean;
+  phase?: string;
+  nextAgent?: string;
+  onboardingComplete?: boolean;
+  ideaSelected?: boolean;
+  proceedToBuild?: boolean;
+}
+
+/**
  * SSE chunk data format from backend
  */
 interface StreamChunk {
@@ -19,6 +31,13 @@ interface StreamChunk {
   agent?: string;
   done?: boolean;
   error?: string;
+  // Phase transition fields (sent with done event)
+  phaseChanged?: boolean;
+  phase?: string;
+  nextAgent?: string;
+  onboardingComplete?: boolean;
+  ideaSelected?: boolean;
+  proceedToBuild?: boolean;
 }
 
 /**
@@ -29,7 +48,11 @@ interface StreamMessageOptions {
   message: string;
   agent: string;
   onChunk: (chunk: string, fullContent: string) => void;
-  onComplete?: (fullContent: string, agent: string) => void;
+  onComplete?: (
+    fullContent: string,
+    agent: string,
+    transition?: PhaseTransition
+  ) => void;
   onError?: (error: string) => void;
 }
 
@@ -174,7 +197,16 @@ export const useStreamingChat = (): UseStreamingChatReturn => {
                 if (data.done) {
                   if (!hasCompleted) {
                     hasCompleted = true;
-                    onComplete?.(fullContent, responseAgent);
+                    const transition: PhaseTransition = {};
+                    if (data.phaseChanged) {
+                      transition.phaseChanged = data.phaseChanged;
+                      transition.phase = data.phase;
+                      transition.nextAgent = data.nextAgent;
+                      transition.onboardingComplete = data.onboardingComplete;
+                      transition.ideaSelected = data.ideaSelected;
+                      transition.proceedToBuild = data.proceedToBuild;
+                    }
+                    onComplete?.(fullContent, responseAgent, transition);
                   }
                   setIsStreaming(false);
                   return fullContent;
@@ -206,7 +238,7 @@ export const useStreamingChat = (): UseStreamingChatReturn => {
             }
             if (data.done && !hasCompleted) {
               hasCompleted = true;
-              onComplete?.(fullContent, responseAgent);
+              onComplete?.(fullContent, responseAgent, {});
             }
           } catch {
             // Ignore parse errors for remaining buffer
@@ -217,7 +249,7 @@ export const useStreamingChat = (): UseStreamingChatReturn => {
         // Only call onComplete if it hasn't been called yet
         if (!hasCompleted) {
           hasCompleted = true;
-          onComplete?.(fullContent, responseAgent);
+          onComplete?.(fullContent, responseAgent, {});
         }
         return fullContent;
       } catch (err) {

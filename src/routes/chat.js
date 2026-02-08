@@ -272,7 +272,52 @@ router.post(
         agent: agent.name
       });
 
-      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      // Check for phase transitions (mirrors logic from /message endpoint)
+      const donePayload = { done: true, agent: agent.name };
+
+      if (agent.name === 'Onboarding') {
+        const onboardingComplete = await agent.isComplete(sessionId);
+        if (onboardingComplete) {
+          await orchestrator.updateState(sessionId, { currentPhase: 'ideation' });
+          await orchestrator.addMilestone(sessionId, 'pain_articulated');
+          donePayload.onboardingComplete = true;
+          donePayload.phase = 'ideation';
+          donePayload.phaseChanged = true;
+          donePayload.nextAgent = 'ideaGenerator';
+        }
+      }
+
+      if (agent.name === 'Validator') {
+        const lowerMessage = message.toLowerCase();
+        const validationDone = await memoryQueries.get(sessionId, 'Validator');
+        if (validationDone?.validated && isProceedToBuildRequest(lowerMessage)) {
+          await orchestrator.updateState(sessionId, { currentPhase: 'strategy' });
+          await orchestrator.addMilestone(sessionId, 'validation_complete');
+          donePayload.proceedToBuild = true;
+          donePayload.phase = 'strategy';
+          donePayload.phaseChanged = true;
+          donePayload.nextAgent = 'builder';
+        }
+      }
+
+      // Also handle idea selection in stream context
+      const existingIdeas = await memoryQueries.get(sessionId, 'GeneratedIdeas');
+      if (existingIdeas?.value?.generated) {
+        const selectedNumber = parseIdeaSelection(message);
+        if (selectedNumber) {
+          const ideaGenerator = getAgent('ideaGenerator');
+          await ideaGenerator.selectIdea(sessionId, selectedNumber, message);
+          await memoryQueries.set(sessionId, 'Validator', null);
+          await orchestrator.updateState(sessionId, { currentPhase: 'validation' });
+          await orchestrator.addMilestone(sessionId, 'idea_selected');
+          donePayload.ideaSelected = true;
+          donePayload.phase = 'validation';
+          donePayload.phaseChanged = true;
+          donePayload.nextAgent = 'validator';
+        }
+      }
+
+      res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
       res.end();
     } catch (error) {
       res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);

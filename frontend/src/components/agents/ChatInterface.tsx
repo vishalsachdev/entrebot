@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgent } from '../../contexts/AgentContext';
 import { useProject } from '../../contexts/ProjectContext';
-import { useStreamingChat } from '../../hooks/useStreamingChat';
+import {
+  useStreamingChat,
+  type PhaseTransition,
+} from '../../hooks/useStreamingChat';
 import { Celebration, Toast } from '../ui';
 import type { ToastType } from '../ui/Toast';
 import { cn } from '../../utils/cn';
@@ -30,7 +33,8 @@ interface ChatInterfaceProps {
 }
 
 const ChatInterface = ({ className }: ChatInterfaceProps) => {
-  const { currentAgent, switchAgent, onAgentSwitch } = useAgent();
+  const { currentAgent, switchAgent, onAgentSwitch, refreshPrerequisites } =
+    useAgent();
   const { currentProject } = useProject();
   const { streamMessage, isStreaming, abortStream } = useStreamingChat();
 
@@ -365,7 +369,11 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
             )
           );
         },
-        onComplete: async (fullContent, responseAgent) => {
+        onComplete: async (
+          fullContent,
+          responseAgent,
+          transition?: PhaseTransition
+        ) => {
           // Guard against duplicate completion calls
           if (completedMessageIds.current.has(streamingMsgId)) {
             return;
@@ -398,6 +406,24 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
             }
           } catch (err) {
             console.error('Failed to fetch progress:', err);
+          }
+
+          // Handle phase transitions - auto-switch to next agent
+          if (transition?.phaseChanged && transition.nextAgent) {
+            const backendToFrontend: Record<string, string> = {
+              ideaGenerator: 'idea-generator',
+              validator: 'validator',
+              builder: 'builder',
+              onboarding: 'onboarding',
+            };
+            const frontendAgentId =
+              backendToFrontend[transition.nextAgent] || transition.nextAgent;
+            // Refresh prerequisites so the agent shows as available
+            refreshPrerequisites();
+            // Small delay to let the user read the last message before switching
+            setTimeout(() => {
+              switchAgent(frontendAgentId);
+            }, 1500);
           }
 
           setTimeout(() => inputRef.current?.focus(), 100);
