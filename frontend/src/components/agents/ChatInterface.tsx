@@ -477,6 +477,126 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
     ensureSession,
   ]);
 
+  // Handle idea selection from card buttons
+  const handleSelectIdea = useCallback(
+    (ideaNumber: number) => {
+      // Set the input to the selection message and trigger send
+      setInput(`#${ideaNumber}`);
+      // Use setTimeout to let state update before triggering send
+      setTimeout(() => {
+        const syntheticInput = `#${ideaNumber}`;
+        if (!currentAgent || isStreaming || isSwitchingAgent) return;
+
+        const userMessage: Message = {
+          id: `msg-${Date.now()}`,
+          role: 'user',
+          content: syntheticInput,
+          timestamp: new Date(),
+          status: 'sent',
+        };
+
+        setMessages(prev => [...prev, userMessage]);
+        setInput('');
+        setIsTyping(true);
+        setError(null);
+
+        (async () => {
+          try {
+            const currentSessionId = await ensureSession();
+            const backendAgentName =
+              agentIdToBackendName[currentAgent.id] || 'ideaGenerator';
+
+            const streamingMsgId = `msg-streaming-${Date.now()}`;
+            setStreamingMessageId(streamingMsgId);
+            setStreamingContent('');
+
+            const placeholderMessage: Message = {
+              id: streamingMsgId,
+              role: 'assistant',
+              content: '',
+              agentId: currentAgent.id,
+              timestamp: new Date(),
+              status: 'sending',
+            };
+            setMessages(prev => [...prev, placeholderMessage]);
+
+            await streamMessage({
+              sessionId: currentSessionId,
+              message: syntheticInput,
+              agent: backendAgentName,
+              onChunk: (_chunk, fullContent) => {
+                setStreamingContent(fullContent);
+                setMessages(prev =>
+                  prev.map(msg =>
+                    msg.id === streamingMsgId
+                      ? { ...msg, content: fullContent }
+                      : msg
+                  )
+                );
+              },
+              onComplete: async (
+                fullContent,
+                responseAgent,
+                transition?: PhaseTransition
+              ) => {
+                if (completedMessageIds.current.has(streamingMsgId)) return;
+                completedMessageIds.current.add(streamingMsgId);
+
+                setMessages(prev =>
+                  prev.map(msg =>
+                    msg.id === streamingMsgId
+                      ? {
+                          ...msg,
+                          content: fullContent,
+                          status: 'delivered',
+                          metadata: { agent: responseAgent },
+                        }
+                      : msg
+                  )
+                );
+                setStreamingMessageId(null);
+                setStreamingContent('');
+                setIsTyping(false);
+
+                if (transition?.phaseChanged && transition.nextAgent) {
+                  const backendToFrontend: Record<string, string> = {
+                    ideaGenerator: 'idea-generator',
+                    validator: 'validator',
+                    builder: 'builder',
+                    onboarding: 'onboarding',
+                  };
+                  const frontendAgentId =
+                    backendToFrontend[transition.nextAgent] ||
+                    transition.nextAgent;
+                  refreshPrerequisites();
+                  setTimeout(() => switchAgent(frontendAgentId), 1500);
+                }
+              },
+              onError: errorMessage => {
+                setStreamingMessageId(null);
+                setStreamingContent('');
+                setIsTyping(false);
+                setError(errorMessage);
+              },
+            });
+          } catch (err) {
+            console.error('Idea selection error:', err);
+            setIsTyping(false);
+          }
+        })();
+      }, 0);
+    },
+    [
+      currentAgent,
+      isStreaming,
+      isSwitchingAgent,
+      streamMessage,
+      ensureSession,
+      refreshPrerequisites,
+      switchAgent,
+    ]
+  );
+
   // Handle stopping the stream
   const handleStopStreaming = useCallback(() => {
     abortStream();
@@ -656,6 +776,7 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
         isTyping={isTyping}
         onEditMessage={handleEditMessage}
         onDeleteMessage={handleDeleteMessage}
+        onSelectIdea={handleSelectIdea}
       />
 
       {/* Input */}

@@ -176,7 +176,7 @@ router.post(
 
     if (agent.name === 'Validator') {
       const validationDone = await memoryQueries.get(sessionId, 'Validator');
-      if (validationDone?.validated && isProceedToBuildRequest(lowerMessage)) {
+      if (validationDone?.value?.validated && isProceedToBuildRequest(lowerMessage)) {
         await orchestrator.updateState(sessionId, { currentPhase: 'strategy' });
         await orchestrator.addMilestone(sessionId, 'validation_complete');
         proceedToBuild = true;
@@ -222,6 +222,69 @@ router.post(
 
     // Store user message
     await conversationQueries.create(sessionId, 'user', message);
+    const lowerMessage = message.toLowerCase();
+
+    // --- Pre-routing: handle idea selection before agent processes message ---
+    const existingIdeas = await memoryQueries.get(sessionId, 'GeneratedIdeas');
+    if (existingIdeas?.value?.generated) {
+      const selectedNumber = parseIdeaSelection(message);
+      if (selectedNumber) {
+        const ideaGenerator = getAgent('ideaGenerator');
+        await ideaGenerator.selectIdea(sessionId, selectedNumber, message);
+        await memoryQueries.set(sessionId, 'Validator', null);
+        await orchestrator.updateState(sessionId, { currentPhase: 'validation' });
+        await orchestrator.addMilestone(sessionId, 'idea_selected');
+
+        const selectionResponse = `Great choice! You've selected idea #${selectedNumber}. Let me validate this idea and see how it stacks up in the market...`;
+        res.write(
+          `data: ${JSON.stringify({ chunk: selectionResponse, agent: 'IdeaGenerator' })}\n\n`
+        );
+
+        await conversationQueries.create(sessionId, 'assistant', selectionResponse, {
+          agent: 'IdeaGenerator'
+        });
+
+        res.write(
+          `data: ${JSON.stringify({
+            done: true,
+            agent: 'IdeaGenerator',
+            ideaSelected: true,
+            phase: 'validation',
+            phaseChanged: true,
+            nextAgent: 'validator'
+          })}\n\n`
+        );
+        return res.end();
+      }
+    }
+
+    // --- Pre-routing: handle back-to-ideas request ---
+    if (isBackToIdeasRequest(lowerMessage)) {
+      await memoryQueries.set(sessionId, 'SelectedIdea', null);
+      await memoryQueries.set(sessionId, 'Validator', null);
+      await memoryQueries.set(sessionId, 'GeneratedIdeas', null);
+      await orchestrator.updateState(sessionId, { currentPhase: 'ideation' });
+
+      const backResponse =
+        "No problem! Let's go back and explore other ideas for your pain point...";
+      res.write(`data: ${JSON.stringify({ chunk: backResponse, agent: 'IdeaGenerator' })}\n\n`);
+
+      await conversationQueries.create(sessionId, 'assistant', backResponse, {
+        agent: 'IdeaGenerator'
+      });
+
+      res.write(
+        `data: ${JSON.stringify({
+          done: true,
+          agent: 'IdeaGenerator',
+          backToIdeas: true,
+          phase: 'ideation',
+          phaseChanged: true,
+          nextAgent: 'ideaGenerator'
+        })}\n\n`
+      );
+      return res.end();
+    }
 
     // Determine which agent to use
     let agent;
@@ -251,8 +314,8 @@ router.post(
         await agent.chat(sessionId, message, onChunk);
       } else if (agent.name === 'IdeaGenerator') {
         // Check if ideas already generated
-        const existingIdeas = await memoryQueries.get(sessionId, 'GeneratedIdeas');
-        if (existingIdeas) {
+        const genIdeas = await memoryQueries.get(sessionId, 'GeneratedIdeas');
+        if (genIdeas?.value?.generated) {
           await agent.chat(sessionId, message, onChunk);
         } else {
           await agent.generate(sessionId, onChunk);
@@ -260,11 +323,13 @@ router.post(
         }
       } else if (agent.name === 'Validator') {
         const validationDone = await memoryQueries.get(sessionId, 'Validator');
-        if (validationDone?.validated) {
+        if (validationDone?.value?.validated) {
           await agent.chat(sessionId, message, onChunk);
         } else {
           await agent.validate(sessionId, onChunk);
         }
+      } else if (agent.name === 'Builder') {
+        await agent.chat(sessionId, message, onChunk);
       }
 
       // Store full response
@@ -272,7 +337,7 @@ router.post(
         agent: agent.name
       });
 
-      // Check for phase transitions (mirrors logic from /message endpoint)
+      // Check for phase transitions
       const donePayload = { done: true, agent: agent.name };
 
       if (agent.name === 'Onboarding') {
@@ -288,32 +353,14 @@ router.post(
       }
 
       if (agent.name === 'Validator') {
-        const lowerMessage = message.toLowerCase();
         const validationDone = await memoryQueries.get(sessionId, 'Validator');
-        if (validationDone?.validated && isProceedToBuildRequest(lowerMessage)) {
+        if (validationDone?.value?.validated && isProceedToBuildRequest(lowerMessage)) {
           await orchestrator.updateState(sessionId, { currentPhase: 'strategy' });
           await orchestrator.addMilestone(sessionId, 'validation_complete');
           donePayload.proceedToBuild = true;
           donePayload.phase = 'strategy';
           donePayload.phaseChanged = true;
           donePayload.nextAgent = 'builder';
-        }
-      }
-
-      // Also handle idea selection in stream context
-      const existingIdeas = await memoryQueries.get(sessionId, 'GeneratedIdeas');
-      if (existingIdeas?.value?.generated) {
-        const selectedNumber = parseIdeaSelection(message);
-        if (selectedNumber) {
-          const ideaGenerator = getAgent('ideaGenerator');
-          await ideaGenerator.selectIdea(sessionId, selectedNumber, message);
-          await memoryQueries.set(sessionId, 'Validator', null);
-          await orchestrator.updateState(sessionId, { currentPhase: 'validation' });
-          await orchestrator.addMilestone(sessionId, 'idea_selected');
-          donePayload.ideaSelected = true;
-          donePayload.phase = 'validation';
-          donePayload.phaseChanged = true;
-          donePayload.nextAgent = 'validator';
         }
       }
 

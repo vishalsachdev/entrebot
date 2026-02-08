@@ -190,6 +190,7 @@ interface MessageListProps {
   isTyping: boolean;
   onEditMessage?: (messageId: string, newContent: string) => void;
   onDeleteMessage?: (messageId: string) => void;
+  onSelectIdea?: (ideaNumber: number) => void;
 }
 
 // Transition message component for agent switches
@@ -219,6 +220,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
       isTyping,
       onEditMessage,
       onDeleteMessage,
+      onSelectIdea,
     },
     ref
   ) => {
@@ -404,9 +406,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
                       <div className="w-full pl-11">
                         <IdeaCardGrid
                           ideas={parsedIdeas}
-                          onSelectIdea={() => {
-                            /* selection handled via chat input */
-                          }}
+                          onSelectIdea={onSelectIdea}
                         />
                       </div>
                     )}
