@@ -1,8 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useProject } from '../../contexts/ProjectContext';
-import { useProgress } from '../../contexts/ProgressContext';
 import { Modal, ModalFooter, Button, Input, Textarea, Alert } from '../ui';
-import type { Project } from '../../types';
 
 interface CreateProjectModalProps {
   isOpen: boolean;
@@ -11,7 +9,6 @@ interface CreateProjectModalProps {
 
 const CreateProjectModal = ({ isOpen, onClose }: CreateProjectModalProps) => {
   const { addProject } = useProject();
-  const { allPhases } = useProgress();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
@@ -34,26 +31,13 @@ const CreateProjectModal = ({ isOpen, onClose }: CreateProjectModalProps) => {
     setIsSubmitting(true);
 
     try {
-      const newProject: Project = {
-        id: `project-${Date.now()}`,
-        name: name.trim(),
-        description: description.trim(),
-        currentPhase: allPhases[0], // Start with Discovery phase
-        progress: 0,
-        createdAt: new Date(),
-        lastActivity: new Date(),
-        milestones: [],
-        agents: [],
-        status: 'active',
-      };
+      await addProject(name.trim(), description.trim());
 
-      addProject(newProject);
-      
       // Reset form
       setName('');
       setDescription('');
       onClose();
-    } catch (err) {
+    } catch {
       setError('Failed to create project. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -89,7 +73,7 @@ const CreateProjectModal = ({ isOpen, onClose }: CreateProjectModalProps) => {
             label="Project Name"
             placeholder="e.g., Sustainable Fashion Marketplace"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={e => setName(e.target.value)}
             required
             autoFocus
           />
@@ -98,15 +82,16 @@ const CreateProjectModal = ({ isOpen, onClose }: CreateProjectModalProps) => {
             label="Description"
             placeholder="Describe your business idea and what problem it solves..."
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={e => setDescription(e.target.value)}
             rows={4}
             required
           />
 
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-blue-900">
-              <strong>Getting Started:</strong> Your project will begin in the Discovery phase. 
-              You'll work with AI agents to explore and validate your business concept.
+              <strong>Getting Started:</strong> Your project will begin in the
+              Discovery phase. You'll work with AI agents to explore and
+              validate your business concept.
             </p>
           </div>
         </div>
