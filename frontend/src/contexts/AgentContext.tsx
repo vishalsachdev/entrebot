@@ -39,7 +39,7 @@ interface AgentProviderProps {
   children: ReactNode;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 // Define prerequisites for each agent
 const agentPrerequisites: Record<string, AgentPrerequisite[]> = {
@@ -181,24 +181,12 @@ export const AgentProvider = ({ children }: AgentProviderProps) => {
     }
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/sessions/${sessionId}/memory`
-      );
+      const response = await fetch(`${API_BASE_URL}/memory/${sessionId}`);
       if (response.ok) {
         const data = await response.json();
-        if (data.success && Array.isArray(data.data)) {
-          // Convert array of memory objects to key-value object
-          const memoryObj = data.data.reduce(
-            (
-              acc: Record<string, unknown>,
-              memory: { key: string; value: unknown }
-            ) => {
-              acc[memory.key] = memory.value;
-              return acc;
-            },
-            {} as Record<string, unknown>
-          );
-          setSessionMemory(memoryObj);
+        if (data.success && data.data?.memory) {
+          // Backend returns { data: { memory: { key: value, ... } } }
+          setSessionMemory(data.data.memory);
         }
       }
     } catch (error) {

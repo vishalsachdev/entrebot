@@ -61,7 +61,6 @@ router.post(
  */
 router.get(
   '/:sessionId/:key',
-  authenticate,
   asyncHandler(async (req, res) => {
     const { sessionId, key } = req.params;
 
@@ -100,7 +99,6 @@ router.get(
  */
 router.get(
   '/:sessionId',
-  authenticate,
   asyncHandler(async (req, res) => {
     const { sessionId } = req.params;
 

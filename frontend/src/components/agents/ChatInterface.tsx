@@ -11,7 +11,7 @@ import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import type { Message } from '../../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 // Map frontend agent IDs to backend agent names
 const agentIdToBackendName: Record<string, string> = {
@@ -19,8 +19,6 @@ const agentIdToBackendName: Record<string, string> = {
   'idea-generator': 'ideaGenerator',
   validator: 'validator',
   builder: 'builder',
-  strategist: 'onboarding',
-  'growth-advisor': 'onboarding',
 };
 
 // Initial greeting message

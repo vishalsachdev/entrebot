@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useProject } from '../contexts/ProjectContext';
 import {
@@ -16,17 +17,43 @@ import {
   Container,
 } from '../components/ui';
 import { ProjectSwitcher } from '../components/projects';
-import { ActivityTimeline, NextSteps, RecommendationCard } from '../components/coaching';
-import { Rocket, Lightbulb, Target, TrendingUp } from 'lucide-react';
+import {
+  ActivityTimeline,
+  NextSteps,
+  RecommendationCard,
+} from '../components/coaching';
+import {
+  Rocket,
+  Lightbulb,
+  Target,
+  TrendingUp,
+  MessageSquare,
+  Plus,
+} from 'lucide-react';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const { projects, currentProject } = useProject();
+  const navigate = useNavigate();
+  const [savedSessionId] = useState(() =>
+    localStorage.getItem('venturebot_session_id')
+  );
+
+  const handleContinueSession = () => {
+    navigate('/agents');
+  };
+
+  const handleStartFresh = () => {
+    localStorage.removeItem('venturebot_session_id');
+    navigate('/agents');
+  };
 
   const quickActions = [
     {
-      title: 'Start Your Journey',
-      description: 'Turn a frustration into a business idea',
+      title: savedSessionId ? 'Continue Journey' : 'Start Your Journey',
+      description: savedSessionId
+        ? 'Pick up where you left off'
+        : 'Turn a frustration into a business idea',
       icon: Rocket,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
@@ -112,6 +139,38 @@ const Dashboard = () => {
           </Card>
         )}
 
+        {/* Session Resume */}
+        {savedSessionId && (
+          <Card className="mb-8 border-green-200 bg-green-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center">
+                    <MessageSquare className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-neutral-900">
+                      You have an active conversation
+                    </h3>
+                    <p className="text-sm text-neutral-600">
+                      Pick up where you left off or start a new session
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={handleStartFresh}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Start Fresh
+                  </Button>
+                  <Button size="sm" onClick={handleContinueSession}>
+                    Continue Conversation
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Quick Actions */}
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-neutral-900 mb-4">
@@ -162,7 +221,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-bold text-primary-600 mb-2">
-                {projects.filter((p) => p.status === 'active').length}
+                {projects.filter(p => p.status === 'active').length}
               </div>
               <p className="text-sm text-neutral-600">
                 {projects.length === 0
@@ -173,7 +232,9 @@ const Dashboard = () => {
             <CardFooter>
               <Link to="/projects">
                 <Button size="sm">
-                  {projects.length === 0 ? 'Start New Project' : 'View Projects'}
+                  {projects.length === 0
+                    ? 'Start New Project'
+                    : 'View Projects'}
                 </Button>
               </Link>
             </CardFooter>
@@ -239,10 +300,13 @@ const Dashboard = () => {
                     recommendation={{
                       id: '1',
                       title: 'Talk to the Validator Agent',
-                      description: 'Get expert feedback on your business concept',
-                      reasoning: 'You\'ve completed the Discovery phase and are ready for validation',
+                      description:
+                        'Get expert feedback on your business concept',
+                      reasoning:
+                        "You've completed the Discovery phase and are ready for validation",
                       priority: 'high',
-                      expectedOutcome: 'Identify potential risks and validate market demand',
+                      expectedOutcome:
+                        'Identify potential risks and validate market demand',
                       actionLabel: 'Start Validation',
                       actionPath: '/agents',
                     }}
@@ -255,7 +319,8 @@ const Dashboard = () => {
               <CardHeader>
                 <CardTitle>Getting Started</CardTitle>
                 <CardDescription>
-                  Follow these steps to make the most of your coaching experience
+                  Follow these steps to make the most of your coaching
+                  experience
                 </CardDescription>
               </CardHeader>
               <CardContent>

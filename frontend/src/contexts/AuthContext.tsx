@@ -1,4 +1,12 @@
-import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  type ReactNode,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { User } from '../types';
 
@@ -17,6 +25,7 @@ export interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -38,7 +47,7 @@ const useAuthNavigation = (): NavigationHelper => {
     navigateTo: (path: string) => {
       try {
         navigate(path);
-      } catch (error) {
+      } catch {
         // Fallback to window.location if navigate fails
         console.warn('Navigation hook failed, using window.location');
         window.location.href = path;
@@ -47,7 +56,7 @@ const useAuthNavigation = (): NavigationHelper => {
     replace: (path: string) => {
       try {
         navigate(path, { replace: true });
-      } catch (error) {
+      } catch {
         console.warn('Navigation hook failed, using window.location');
         window.location.replace(path);
       }
@@ -87,69 +96,97 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     checkAuth();
   }, []);
 
-  const login = useCallback(async (email: string, _password: string) => {
-    try {
-      setIsLoading(true);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const login = useCallback(
+    async (email: string, _password: string) => {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+      try {
+        setIsLoading(true);
 
-      // TODO: Replace with actual API call
-      // Simulating API call for now
-      await new Promise(resolve => setTimeout(resolve, 1000));
+        // Create or get user from backend
+        const response = await fetch(`${API_BASE_URL}/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, name: email.split('@')[0] }),
+        });
 
-      // Mock successful login
-      const mockUser: User = {
-        id: '1',
-        email,
-        name: email.split('@')[0],
-        createdAt: new Date().toISOString(),
-      };
+        const data = await response.json();
 
-      const mockToken = 'mock-jwt-token-' + Date.now();
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Login failed');
+        }
 
-      localStorage.setItem('auth_token', mockToken);
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      setUser(mockUser);
+        const backendUser = data.data;
+        const appUser: User = {
+          id: backendUser.id,
+          email: backendUser.email,
+          name: backendUser.name || email.split('@')[0],
+          createdAt: backendUser.created_at,
+        };
 
-      // Use safe navigation
-      replace('/');
-    } catch (error) {
-      console.error('Login failed:', error);
-      throw new Error('Invalid email or password');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [replace]);
+        const token = `session-${backendUser.id}-${Date.now()}`;
 
-  const register = useCallback(async (name: string, email: string, _password: string) => {
-    try {
-      setIsLoading(true);
+        localStorage.setItem('auth_token', token);
+        localStorage.setItem('user', JSON.stringify(appUser));
+        setUser(appUser);
 
-      // TODO: Replace with actual API call
-      // Simulating API call for now
-      await new Promise(resolve => setTimeout(resolve, 1000));
+        replace('/');
+      } catch (error) {
+        console.error('Login failed:', error);
+        throw new Error(
+          'Login failed. Please check your connection and try again.'
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [replace]
+  );
 
-      // Mock successful registration
-      const mockUser: User = {
-        id: '1',
-        email,
-        name,
-        createdAt: new Date().toISOString(),
-      };
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const register = useCallback(
+    async (name: string, email: string, _password: string) => {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+      try {
+        setIsLoading(true);
 
-      const mockToken = 'mock-jwt-token-' + Date.now();
+        // Create user in backend
+        const response = await fetch(`${API_BASE_URL}/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, name }),
+        });
 
-      localStorage.setItem('auth_token', mockToken);
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      setUser(mockUser);
+        const data = await response.json();
 
-      // Use safe navigation
-      replace('/');
-    } catch (error) {
-      console.error('Registration failed:', error);
-      throw new Error('Registration failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [replace]);
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Registration failed');
+        }
+
+        const backendUser = data.data;
+        const appUser: User = {
+          id: backendUser.id,
+          email: backendUser.email,
+          name: backendUser.name || name,
+          createdAt: backendUser.created_at,
+        };
+
+        const token = `session-${backendUser.id}-${Date.now()}`;
+
+        localStorage.setItem('auth_token', token);
+        localStorage.setItem('user', JSON.stringify(appUser));
+        setUser(appUser);
+
+        replace('/');
+      } catch (error) {
+        console.error('Registration failed:', error);
+        throw new Error('Registration failed. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [replace]
+  );
 
   const logout = useCallback(() => {
     localStorage.removeItem('auth_token');

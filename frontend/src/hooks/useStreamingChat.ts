@@ -9,7 +9,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 /**
  * SSE chunk data format from backend

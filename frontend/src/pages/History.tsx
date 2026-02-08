@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { History as HistoryIcon, MessageSquare, Calendar, ChevronRight, Loader2, Trash2, Bot } from 'lucide-react';
+import {
+  History as HistoryIcon,
+  MessageSquare,
+  Calendar,
+  ChevronRight,
+  Loader2,
+  Trash2,
+  Bot,
+} from 'lucide-react';
 import {
   Container,
   PageHeader,
@@ -11,7 +19,7 @@ import {
 } from '../components/ui';
 import { cn } from '../utils/cn';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 interface Session {
   id: string;
@@ -48,13 +56,16 @@ const History = () => {
         : 'demo@example.com';
 
       // Fetch sessions for this user
-      const response = await fetch(`${API_BASE_URL}/sessions?email=${encodeURIComponent(userEmail)}`);
+      const response = await fetch(
+        `${API_BASE_URL}/sessions?email=${encodeURIComponent(userEmail)}`
+      );
       const data = await response.json();
 
       if (data.success && data.data) {
         // Sort by updated_at descending
-        const sortedSessions = data.data.sort((a: Session, b: Session) => 
-          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        const sortedSessions = data.data.sort(
+          (a: Session, b: Session) =>
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
         );
 
         // Set sessions immediately without extra API calls
@@ -83,7 +94,7 @@ const History = () => {
       // For now, just remove from local state
       // TODO: Add backend endpoint to delete session
       setSessions(sessions.filter(s => s.id !== sessionId));
-      
+
       // If this was the current session, clear it
       if (localStorage.getItem('venturebot_session_id') === sessionId) {
         localStorage.removeItem('venturebot_session_id');
@@ -156,7 +167,7 @@ const History = () => {
           </Card>
         ) : (
           <div className="space-y-3">
-            {sessions.map((session) => (
+            {sessions.map(session => (
               <motion.div
                 key={session.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -167,7 +178,8 @@ const History = () => {
                 <Card
                   className={cn(
                     'cursor-pointer hover:border-primary-300 transition-all',
-                    currentSessionId === session.id && 'border-primary-500 bg-primary-50'
+                    currentSessionId === session.id &&
+                      'border-primary-500 bg-primary-50'
                   )}
                   onClick={() => loadSession(session.id)}
                 >
@@ -180,7 +192,10 @@ const History = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <h3 className="font-medium text-neutral-900 truncate">
-                              Session from {new Date(session.created_at).toLocaleDateString()}
+                              Session from{' '}
+                              {new Date(
+                                session.created_at
+                              ).toLocaleDateString()}
                             </h3>
                             {currentSessionId === session.id && (
                               <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
@@ -202,7 +217,7 @@ const History = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={(e) => deleteSession(session.id, e)}
+                          onClick={e => deleteSession(session.id, e)}
                           className="p-2 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete conversation"
                         >

@@ -27,8 +27,7 @@ import type {
 // Configuration
 // ============================================================================
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second base delay
@@ -918,14 +917,11 @@ export const projectService = {
     name: string,
     description?: string
   ): Promise<DbProject> {
-    const response = await apiClient.post<ApiResponse<DbProject>>(
-      '/v1/projects',
-      {
-        userId,
-        name,
-        description: description || null,
-      }
-    );
+    const response = await apiClient.post<ApiResponse<DbProject>>('/projects', {
+      userId,
+      name,
+      description: description || null,
+    });
     return response.data;
   },
 

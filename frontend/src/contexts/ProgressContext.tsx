@@ -1,4 +1,10 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  type ReactNode,
+} from 'react';
 import type { JourneyPhase, Milestone } from '../types';
 
 export interface ProgressContextType {
@@ -8,14 +14,20 @@ export interface ProgressContextType {
   overallProgress: number;
   isLoading: boolean;
   setCurrentPhase: (phase: JourneyPhase) => void;
-  updatePhaseStatus: (phaseId: string, status: 'not_started' | 'in_progress' | 'completed') => void;
+  updatePhaseStatus: (
+    phaseId: string,
+    status: 'not_started' | 'in_progress' | 'completed'
+  ) => void;
   completeMilestone: (milestoneId: string) => void;
   addMilestone: (milestone: Milestone) => void;
   getPhaseProgress: (phaseId: string) => number;
 }
 
-const ProgressContext = createContext<ProgressContextType | undefined>(undefined);
+const ProgressContext = createContext<ProgressContextType | undefined>(
+  undefined
+);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useProgress = () => {
   const context = useContext(ProgressContext);
   if (!context) {
@@ -64,7 +76,7 @@ const defaultPhases: JourneyPhase[] = [
     status: 'not_started',
     milestones: [],
     estimatedDuration: '3-4 weeks',
-    requiredAgents: ['strategist'],
+    requiredAgents: ['builder'],
   },
   {
     id: 'building',
@@ -82,7 +94,7 @@ const defaultPhases: JourneyPhase[] = [
     status: 'not_started',
     milestones: [],
     estimatedDuration: '2-4 weeks',
-    requiredAgents: ['strategist', 'growth-advisor'],
+    requiredAgents: ['builder'],
   },
   {
     id: 'growth',
@@ -91,7 +103,7 @@ const defaultPhases: JourneyPhase[] = [
     status: 'not_started',
     milestones: [],
     estimatedDuration: 'Ongoing',
-    requiredAgents: ['growth-advisor'],
+    requiredAgents: ['builder'],
   },
 ];
 
@@ -161,20 +173,18 @@ export const ProgressProvider = ({ children }: ProgressProviderProps) => {
     phaseId: string,
     status: 'not_started' | 'in_progress' | 'completed'
   ) => {
-    setAllPhases((prev) =>
-      prev.map((phase) =>
-        phase.id === phaseId ? { ...phase, status } : phase
-      )
+    setAllPhases(prev =>
+      prev.map(phase => (phase.id === phaseId ? { ...phase, status } : phase))
     );
 
     if (currentPhase?.id === phaseId) {
-      setCurrentPhase((prev) => (prev ? { ...prev, status } : null));
+      setCurrentPhase(prev => (prev ? { ...prev, status } : null));
     }
   };
 
   const completeMilestone = (milestoneId: string) => {
-    setMilestones((prev) =>
-      prev.map((m) =>
+    setMilestones(prev =>
+      prev.map(m =>
         m.id === milestoneId
           ? { ...m, completed: true, completedAt: new Date() }
           : m
@@ -183,19 +193,21 @@ export const ProgressProvider = ({ children }: ProgressProviderProps) => {
   };
 
   const addMilestone = (milestone: Milestone) => {
-    setMilestones((prev) => [...prev, milestone]);
+    setMilestones(prev => [...prev, milestone]);
   };
 
   const getPhaseProgress = (phaseId: string): number => {
-    const phaseMilestones = milestones.filter((m) => m.phase === phaseId);
+    const phaseMilestones = milestones.filter(m => m.phase === phaseId);
     if (phaseMilestones.length === 0) return 0;
 
-    const completed = phaseMilestones.filter((m) => m.completed).length;
+    const completed = phaseMilestones.filter(m => m.completed).length;
     return Math.round((completed / phaseMilestones.length) * 100);
   };
 
   const overallProgress = (() => {
-    const completedPhases = allPhases.filter((p) => p.status === 'completed').length;
+    const completedPhases = allPhases.filter(
+      p => p.status === 'completed'
+    ).length;
     return Math.round((completedPhases / allPhases.length) * 100);
   })();
 
