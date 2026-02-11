@@ -26,6 +26,26 @@ export interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const toFriendlyAuthMessage = (error: unknown, fallback: string): string => {
+  const raw =
+    error instanceof Error && error.message ? error.message : fallback;
+  const lower = raw.toLowerCase();
+
+  if (lower.includes('email rate limit exceeded')) {
+    return 'Too many sign-up attempts right now. Please wait a minute and try again.';
+  }
+
+  if (lower.includes('email not confirmed')) {
+    return 'Your email is not verified yet. Please check your inbox and confirm your email, then sign in.';
+  }
+
+  if (lower.includes('invalid login credentials')) {
+    return 'Invalid email or password. Please try again.';
+  }
+
+  return raw;
+};
+
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -78,6 +98,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Check for existing session on mount
   useEffect(() => {
     const checkAuth = async () => {
+      const clearLocalAuth = () => {
+        apiClient.clearToken();
+        localStorage.removeItem('user');
+        setUser(null);
+      };
+
       try {
         const token = localStorage.getItem('auth_token');
         const storedUser = localStorage.getItem('user');
@@ -104,14 +130,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             }
           }
 
-          // Token is invalid or expired
-          apiClient.clearToken();
-          localStorage.removeItem('user');
+          // Only clear on auth failures; preserve session for transient backend failures.
+          if (response.status === 401 || response.status === 403) {
+            clearLocalAuth();
+          } else {
+            const cachedUser: User = JSON.parse(storedUser);
+            setUser(cachedUser);
+          }
         }
       } catch (error) {
         console.error('Auth check failed:', error);
-        apiClient.clearToken();
-        localStorage.removeItem('user');
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            const cachedUser: User = JSON.parse(storedUser);
+            setUser(cachedUser);
+          } catch {
+            clearLocalAuth();
+          }
+        } else {
+          clearLocalAuth();
+        }
       } finally {
         setIsLoading(false);
       }
@@ -159,7 +198,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       } catch (error) {
         console.error('Login failed:', error);
         throw new Error(
-          'Login failed. Please check your credentials and try again.'
+          toFriendlyAuthMessage(
+            error,
+            'Login failed. Please check your credentials and try again.'
+          )
         );
       } finally {
         setIsLoading(false);
@@ -208,7 +250,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         replace('/');
       } catch (error) {
         console.error('Registration failed:', error);
-        throw new Error('Registration failed. Please try again.');
+        throw new Error(
+          toFriendlyAuthMessage(error, 'Registration failed. Please try again.')
+        );
       } finally {
         setIsLoading(false);
       }

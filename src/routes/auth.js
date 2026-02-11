@@ -76,9 +76,12 @@ router.post(
 
     if (error) {
       logger.warn('Auth register failed:', error.message);
-      return res.status(400).json({
+      const isRateLimited = /rate limit/i.test(error.message || '');
+      return res.status(isRateLimited ? 429 : 400).json({
         success: false,
-        error: error.message
+        error: isRateLimited
+          ? 'Too many sign-up attempts right now. Please wait a minute and try again.'
+          : error.message
       });
     }
 
@@ -120,9 +123,12 @@ router.post(
 
     if (error || !data.session) {
       logger.warn('Auth login failed:', error?.message || 'No session returned');
+      const isEmailUnconfirmed = /email not confirmed/i.test(error?.message || '');
       return res.status(401).json({
         success: false,
-        error: error?.message || 'Invalid credentials'
+        error: isEmailUnconfirmed
+          ? 'Your email is not verified yet. Please check your inbox and confirm your email, then sign in.'
+          : error?.message || 'Invalid credentials'
       });
     }
 
