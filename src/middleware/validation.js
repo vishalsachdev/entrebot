@@ -43,7 +43,17 @@ export const schemas = {
   sendMessage: Joi.object({
     sessionId: Joi.string().required(),
     message: Joi.string().required().min(1).max(5000),
-    agent: Joi.string().optional().valid('onboarding', 'ideaGenerator', 'validator')
+    agent: Joi.string()
+      .optional()
+      .valid(
+        'onboarding',
+        'ideaGenerator',
+        'validator',
+        'builder',
+        'promptEngineer',
+        'goToMarket',
+        'growthCoach'
+      )
   }),
 
   selectIdea: Joi.object({

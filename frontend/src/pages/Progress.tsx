@@ -21,7 +21,7 @@ import {
 } from '../components/progress';
 
 // Session ID storage key (matches ChatContext)
-const SESSION_ID_KEY = 'entrebot_session_id';
+const SESSION_ID_KEY = 'venturebot_session_id';
 
 // API response types
 interface ProgressResponse {

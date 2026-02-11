@@ -48,7 +48,7 @@ export const useSetMemory = () => {
     }: {
       sessionId: string;
       key: string;
-      value: any;
+      value: unknown;
     }) => memoryService.setMemory(sessionId, key, value),
     onMutate: async ({ sessionId, key, value }) => {
       // Cancel outgoing refetches
@@ -65,7 +65,7 @@ export const useSetMemory = () => {
       queryClient.setQueryData(memoryKeys.detail(sessionId, key), value);
 
       // Update the all memory cache
-      const allMemory = queryClient.getQueryData<Record<string, any>>(
+      const allMemory = queryClient.getQueryData<Record<string, unknown>>(
         memoryKeys.list(sessionId)
       );
       if (allMemory) {
@@ -107,7 +107,7 @@ export const useUpdateMemory = () => {
     }: {
       sessionId: string;
       key: string;
-      value: any;
+      value: unknown;
     }) => memoryService.updateMemory(sessionId, key, value),
     onMutate: async ({ sessionId, key, value }) => {
       await queryClient.cancelQueries({
@@ -146,7 +146,9 @@ export const useDeleteMemory = () => {
     mutationFn: ({ sessionId, key }: { sessionId: string; key: string }) =>
       memoryService.deleteMemory(sessionId, key),
     onSuccess: (_, { sessionId, key }) => {
-      queryClient.removeQueries({ queryKey: memoryKeys.detail(sessionId, key) });
+      queryClient.removeQueries({
+        queryKey: memoryKeys.detail(sessionId, key),
+      });
       queryClient.invalidateQueries({ queryKey: memoryKeys.list(sessionId) });
     },
   });
@@ -173,12 +175,12 @@ export const useSetMultipleMemory = () => {
       data,
     }: {
       sessionId: string;
-      data: Record<string, any>;
+      data: Record<string, unknown>;
     }) => memoryService.setMultipleMemory(sessionId, data),
     onMutate: async ({ sessionId, data }) => {
       await queryClient.cancelQueries({ queryKey: memoryKeys.list(sessionId) });
 
-      const previousMemory = queryClient.getQueryData<Record<string, any>>(
+      const previousMemory = queryClient.getQueryData<Record<string, unknown>>(
         memoryKeys.list(sessionId)
       );
 

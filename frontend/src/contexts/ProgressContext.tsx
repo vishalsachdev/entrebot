@@ -70,8 +70,8 @@ const defaultPhases: JourneyPhase[] = [
     requiredAgents: ['validator'],
   },
   {
-    id: 'planning',
-    name: 'Planning',
+    id: 'strategy',
+    name: 'Strategy',
     description: 'Create detailed business and execution plans',
     status: 'not_started',
     milestones: [],
@@ -121,12 +121,26 @@ export const ProgressProvider = ({ children }: ProgressProviderProps) => {
       const storedCurrentPhaseId = localStorage.getItem('currentPhaseId');
 
       if (storedPhases) {
-        const parsedPhases = JSON.parse(storedPhases);
+        const parsedPhases = JSON.parse(storedPhases).map(
+          (phase: JourneyPhase) =>
+            phase.id === 'planning'
+              ? {
+                  ...phase,
+                  id: 'strategy',
+                  name: phase.name === 'Planning' ? 'Strategy' : phase.name,
+                }
+              : phase
+        );
         setAllPhases(parsedPhases);
 
-        if (storedCurrentPhaseId) {
+        const normalizedCurrentPhaseId =
+          storedCurrentPhaseId === 'planning'
+            ? 'strategy'
+            : storedCurrentPhaseId;
+
+        if (normalizedCurrentPhaseId) {
           const current = parsedPhases.find(
-            (p: JourneyPhase) => p.id === storedCurrentPhaseId
+            (p: JourneyPhase) => p.id === normalizedCurrentPhaseId
           );
           if (current) {
             setCurrentPhase(current);
@@ -135,7 +149,13 @@ export const ProgressProvider = ({ children }: ProgressProviderProps) => {
       }
 
       if (storedMilestones) {
-        setMilestones(JSON.parse(storedMilestones));
+        const parsedMilestones = JSON.parse(storedMilestones).map(
+          (milestone: Milestone) =>
+            milestone.phase === 'planning'
+              ? { ...milestone, phase: 'strategy' }
+              : milestone
+        );
+        setMilestones(parsedMilestones);
       }
     } catch (error) {
       console.error('Failed to load progress:', error);

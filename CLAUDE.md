@@ -475,6 +475,44 @@ New `classifyMessage()` method returns: `'rating'`, `'selection'`, `'affirmative
 - Phase 5: Advanced coaching features (follow-up questions, progress tracking)
 - Consider adding unit tests for `classifyMessage()` function
 
+### 2026-02-07
+**Completed:**
+- Full frontend-backend integration: fixed API URL mismatches (6 files), mock auth → real auth, dead agent mappings removed
+- Memory endpoint fixes: URL path, auth middleware removal, data format parsing
+- Restored paused Supabase project
+- Deployed to Vercel (frontend) + Render (backend)
+- Created root `vercel.json` to build from `frontend/` subdirectory
+- Fixed TypeScript build errors for Vercel (CreateProjectModal signature, ToastState export, example exclusion)
+- Fixed session creation race condition (ref-based promise deduplication in `ensureSession()`)
+- Added phase transition logic to `/chat/stream` endpoint (was completely missing - users got stuck in onboarding)
+- Added pre-routing for idea selection and back-to-ideas in stream endpoint
+- Wired idea card button `onSelectIdea` prop chain (was no-op `() => {}`)
+- Fixed validator memory access: `?.validated` → `?.value?.validated`
+- Added Builder agent handling to stream endpoint
+
+**Known Bug - VALIDATION LOOP (unresolved):**
+- After idea selection, user gets stuck in validation phase
+- Validator agent keeps looping instead of completing and allowing transition to builder
+- Likely root cause areas to investigate:
+  1. `src/agents/validator.js` - check `validate()` method and how it sets `Validator` memory key with `{ validated: true }`
+  2. `src/routes/chat.js` stream endpoint - validator completion check: `validationDone?.value?.validated && isProceedToBuildRequest(lowerMessage)` — user may not be sending a message that matches `isProceedToBuildRequest()` patterns
+  3. The stream endpoint agent routing (lines ~324-330) re-calls `agent.validate()` if `Validator` memory isn't set yet, but if `validate()` never sets the memory key, it loops
+  4. Check if `validator.validate()` actually calls `memoryQueries.set(sessionId, 'Validator', { validated: true })` on completion
+  5. Frontend `ChatInterface.tsx` — after validation completes, does it send the right agent name for the next message?
+- This is the **top priority** for next session
+
+**Key Files Modified:**
+- `src/routes/chat.js` - Stream endpoint overhaul (pre-routing, transitions, builder handling)
+- `frontend/src/hooks/useStreamingChat.ts` - PhaseTransition type, onComplete signature
+- `frontend/src/components/agents/ChatInterface.tsx` - Session race fix, handleSelectIdea, transition handling
+- `frontend/src/components/agents/MessageList.tsx` - onSelectIdea prop wiring
+- `vercel.json` (root, new) - Vercel build config for frontend subdirectory
+
+**Key Patterns Learned:**
+- Stream and non-stream endpoints must have identical routing logic — easy to add features to one and forget the other
+- `memoryQueries.get()` returns `{success, value}` — always access `.value`
+- React ref-based promise deduplication prevents concurrent async operations (session creation race)
+
 ---
 
 # important-instruction-reminders

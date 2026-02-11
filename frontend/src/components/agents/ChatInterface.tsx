@@ -22,6 +22,9 @@ const agentIdToBackendName: Record<string, string> = {
   'idea-generator': 'ideaGenerator',
   validator: 'validator',
   builder: 'builder',
+  'prompt-engineer': 'promptEngineer',
+  'go-to-market': 'goToMarket',
+  'growth-coach': 'growthCoach',
 };
 
 // Initial greeting message
@@ -92,6 +95,27 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
     if (sessionPromiseRef.current) return sessionPromiseRef.current;
 
     const createSession = async (): Promise<string> => {
+      const token = localStorage.getItem('auth_token');
+
+      // Preferred path: authenticated chat session endpoint
+      if (token) {
+        const authResponse = await fetch(`${API_BASE_URL}/chat/sessions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const authData = await authResponse.json();
+        if (authResponse.ok && authData.success && authData.session?.id) {
+          const newSessionId = authData.session.id;
+          setSessionId(newSessionId);
+          localStorage.setItem('venturebot_session_id', newSessionId);
+          return newSessionId;
+        }
+      }
+
+      // Legacy fallback for non-auth/demo mode
       const userEmail = localStorage.getItem('user')
         ? JSON.parse(localStorage.getItem('user')!).email
         : 'demo@example.com';
@@ -105,13 +129,8 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
         body: JSON.stringify({ email: userEmail, name: userName }),
       });
       const userData = await userResponse.json();
-
-      let userId: string;
-      if (userData.success && userData.data?.id) {
-        userId = userData.data.id;
-      } else {
-        userId = userEmail;
-      }
+      const userId =
+        userData.success && userData.data?.id ? userData.data.id : userEmail;
 
       const response = await fetch(`${API_BASE_URL}/sessions`, {
         method: 'POST',
@@ -152,13 +171,21 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
 
     const loadHistory = async () => {
       const savedSessionId = localStorage.getItem('venturebot_session_id');
+      const token = localStorage.getItem('auth_token');
+      const authHeaders = token
+        ? { Authorization: `Bearer ${token}` }
+        : undefined;
 
       if (savedSessionId) {
         setSessionId(savedSessionId);
         try {
           const [historyResponse, progressResponse] = await Promise.all([
-            fetch(`${API_BASE_URL}/chat/history/${savedSessionId}`),
-            fetch(`${API_BASE_URL}/chat/progress/${savedSessionId}`),
+            fetch(`${API_BASE_URL}/chat/history/${savedSessionId}`, {
+              headers: authHeaders,
+            }),
+            fetch(`${API_BASE_URL}/chat/progress/${savedSessionId}`, {
+              headers: authHeaders,
+            }),
           ]);
 
           const historyData = await historyResponse.json();
@@ -397,8 +424,15 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
           setIsTyping(false);
 
           try {
+            const token = localStorage.getItem('auth_token');
+            const headers = token
+              ? { Authorization: `Bearer ${token}` }
+              : undefined;
             const progressResponse = await fetch(
-              `${API_BASE_URL}/chat/progress/${currentSessionId}`
+              `${API_BASE_URL}/chat/progress/${currentSessionId}`,
+              {
+                headers,
+              }
             );
             const progressData = await progressResponse.json();
             if (progressData.success) {
@@ -414,7 +448,10 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
               ideaGenerator: 'idea-generator',
               validator: 'validator',
               builder: 'builder',
+              promptEngineer: 'prompt-engineer',
               onboarding: 'onboarding',
+              goToMarket: 'go-to-market',
+              growthCoach: 'growth-coach',
             };
             const frontendAgentId =
               backendToFrontend[transition.nextAgent] || transition.nextAgent;
@@ -475,6 +512,8 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
     streamMessage,
     streamingMessageId,
     ensureSession,
+    refreshPrerequisites,
+    switchAgent,
   ]);
 
   // Handle idea selection from card buttons
@@ -563,7 +602,10 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
                     ideaGenerator: 'idea-generator',
                     validator: 'validator',
                     builder: 'builder',
+                    promptEngineer: 'prompt-engineer',
                     onboarding: 'onboarding',
+                    goToMarket: 'go-to-market',
+                    growthCoach: 'growth-coach',
                   };
                   const frontendAgentId =
                     backendToFrontend[transition.nextAgent] ||
@@ -666,6 +708,51 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
     []
   );
 
+  // Create a shareable snapshot link for the current session
+  const handleShareSession = useCallback(async () => {
+    if (!sessionId) {
+      showToast('error', 'No active session to share');
+      return;
+    }
+
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    const token = localStorage.getItem('auth_token');
+    if (!user?.id || !token) {
+      showToast('error', 'Please sign in before sharing');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/shared`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          sessionId,
+          title: `VentureBot journey (${new Date().toLocaleDateString()})`,
+          public: true,
+          allowForking: true,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success || !data.data?.share_id) {
+        throw new Error(data.error || 'Failed to create share link');
+      }
+
+      const shareUrl = `${window.location.origin}/shared/${data.data.share_id}`;
+      await navigator.clipboard.writeText(shareUrl);
+      showToast('success', 'Share link copied', shareUrl);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to create share link';
+      showToast('error', 'Share failed', message);
+    }
+  }, [sessionId, showToast]);
+
   // Close toast handler
   const handleCloseToast = useCallback(() => {
     setToast(prev => ({ ...prev, show: false }));
@@ -763,6 +850,7 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
           messages={messages}
           sessionId={sessionId}
           onCopyLog={handleCopyLog}
+          onShareSession={handleShareSession}
           onNewChat={handleNewChat}
         />
       )}

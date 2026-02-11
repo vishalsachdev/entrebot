@@ -24,7 +24,8 @@ export const useConversationHistory = (
 ) => {
   return useQuery({
     queryKey: conversationKeys.list(sessionId, limit, offset),
-    queryFn: () => conversationService.getConversationHistory(sessionId, limit, offset),
+    queryFn: () =>
+      conversationService.getConversationHistory(sessionId, limit, offset),
     enabled: !!sessionId,
   });
 };
@@ -36,7 +37,8 @@ export const useConversationSummary = (
 ) => {
   return useQuery({
     queryKey: conversationKeys.summary(sessionId),
-    queryFn: () => conversationService.getConversationSummary(sessionId, firstN, lastN),
+    queryFn: () =>
+      conversationService.getConversationSummary(sessionId, firstN, lastN),
     enabled: !!sessionId,
   });
 };
@@ -49,7 +51,11 @@ export const useMessage = (messageId: string) => {
   });
 };
 
-export const useSearchMessages = (sessionId: string, query: string, limit = 20) => {
+export const useSearchMessages = (
+  sessionId: string,
+  query: string,
+  limit = 20
+) => {
   return useQuery({
     queryKey: conversationKeys.search(sessionId, query),
     queryFn: () => conversationService.searchMessages(sessionId, query, limit),
@@ -71,7 +77,7 @@ export const useAddMessage = () => {
       sessionId: string;
       role: 'user' | 'assistant' | 'system';
       content: string;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
     }) => conversationService.addMessage(sessionId, role, content, metadata),
     onMutate: async ({ sessionId, role, content, metadata }) => {
       // Cancel outgoing refetches
@@ -117,7 +123,10 @@ export const useAddMessage = () => {
       queryClient.invalidateQueries({
         queryKey: conversationKeys.list(sessionId),
       });
-      queryClient.setQueryData(conversationKeys.detail(newMessage.id), newMessage);
+      queryClient.setQueryData(
+        conversationKeys.detail(newMessage.id),
+        newMessage
+      );
     },
   });
 };
@@ -131,7 +140,7 @@ export const useUpdateMessage = () => {
       updates,
     }: {
       messageId: string;
-      updates: { content?: string; metadata?: Record<string, any> };
+      updates: { content?: string; metadata?: Record<string, unknown> };
     }) => conversationService.updateMessage(messageId, updates),
     onMutate: async ({ messageId, updates }) => {
       await queryClient.cancelQueries({
@@ -162,7 +171,7 @@ export const useUpdateMessage = () => {
         );
       }
     },
-    onSettled: (data) => {
+    onSettled: data => {
       if (data) {
         queryClient.invalidateQueries({
           queryKey: conversationKeys.detail(data.id),
@@ -179,9 +188,12 @@ export const useDeleteMessage = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (messageId: string) => conversationService.deleteMessage(messageId),
+    mutationFn: (messageId: string) =>
+      conversationService.deleteMessage(messageId),
     onSuccess: (_, messageId) => {
-      queryClient.removeQueries({ queryKey: conversationKeys.detail(messageId) });
+      queryClient.removeQueries({
+        queryKey: conversationKeys.detail(messageId),
+      });
       queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
     },
   });

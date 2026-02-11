@@ -9,61 +9,135 @@ import type {
   CreateMemoryForm,
   UpdateMemoryForm,
 } from '../types/database';
+import type { ApiResponse } from '../types';
+
+const unwrap = async <T>(promise: Promise<ApiResponse<T>>): Promise<T> => {
+  const response = await promise;
+  return response.data;
+};
+
+const normalizeMemoryValue = (value: unknown): string => {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+const normalizeMemory = (memory: DbMemory): DbMemory => ({
+  ...memory,
+  value: normalizeMemoryValue(memory.value),
+});
 
 // User endpoints
 export const userService = {
   getUser: (userId: string) =>
-    apiClient.get<DbUser>(`/users/${userId}`),
+    unwrap(apiClient.get<ApiResponse<DbUser>>(`/users/${userId}`)),
 
   updateUser: (userId: string, data: UpdateUserForm) =>
-    apiClient.put<DbUser>(`/users/${userId}`, data),
+    unwrap(apiClient.put<ApiResponse<DbUser>>(`/users/${userId}`, data)),
 
-  getAllUsers: () =>
-    apiClient.get<DbUser[]>('/users'),
+  getAllUsers: () => unwrap(apiClient.get<ApiResponse<DbUser[]>>('/users')),
 };
 
 // Session endpoints
 export const sessionService = {
   getSession: (sessionId: string) =>
-    apiClient.get<DbSession>(`/sessions/${sessionId}`),
+    unwrap(apiClient.get<ApiResponse<DbSession>>(`/sessions/${sessionId}`)),
 
   getUserSessions: (userId: string) =>
-    apiClient.get<DbSession[]>(`/users/${userId}/sessions`),
+    unwrap(
+      apiClient.get<ApiResponse<DbSession[]>>(
+        `/sessions/users/${userId}/sessions`
+      )
+    ),
 
   createSession: (userId: string, metadata?: Record<string, unknown>) =>
-    apiClient.post<DbSession>('/sessions', { user_id: userId, metadata }),
+    unwrap(
+      apiClient.post<ApiResponse<DbSession>>('/sessions', { userId, metadata })
+    ),
 
   deleteSession: (sessionId: string) =>
-    apiClient.delete<void>(`/sessions/${sessionId}`),
+    unwrap(apiClient.delete<ApiResponse<void>>(`/sessions/${sessionId}`)),
 };
 
 // Conversation endpoints
 export const conversationService = {
   getConversations: (sessionId: string) =>
-    apiClient.get<DbConversation[]>(`/conversations/${sessionId}`),
+    unwrap(
+      apiClient.get<ApiResponse<DbConversation[]>>(
+        `/conversations/${sessionId}`
+      )
+    ),
 
-  createMessage: (sessionId: string, role: 'user' | 'assistant' | 'system', content: string) =>
-    apiClient.post<DbConversation>('/conversations', {
-      session_id: sessionId,
-      role,
-      content,
-    }),
+  createMessage: (
+    sessionId: string,
+    role: 'user' | 'assistant' | 'system',
+    content: string
+  ) =>
+    unwrap(
+      apiClient.post<ApiResponse<DbConversation>>('/conversations', {
+        sessionId,
+        role,
+        content,
+      })
+    ),
 };
 
 // Memory endpoints
 export const memoryService = {
   getMemories: (sessionId: string) =>
-    apiClient.get<DbMemory[]>(`/sessions/${sessionId}/memories`),
+    unwrap(
+      apiClient
+        .get<
+          ApiResponse<{ memory: Record<string, unknown> }>
+        >(`/memory/${sessionId}`)
+        .then(response => ({
+          ...response,
+          data: Object.entries(response.data.memory || {}).map(
+            ([key, value]) => ({
+              id: `${sessionId}:${key}`,
+              session_id: sessionId,
+              key,
+              value: normalizeMemoryValue(value),
+              created_at: '',
+              updated_at: '',
+            })
+          ),
+        }))
+    ),
 
-  createMemory: (sessionId: string, data: CreateMemoryForm) =>
-    apiClient.post<DbMemory>('/memories', {
-      session_id: sessionId,
-      ...data,
-    }),
+  createMemory: async (sessionId: string, data: CreateMemoryForm) =>
+    normalizeMemory(
+      await unwrap(
+        apiClient.post<ApiResponse<DbMemory>>('/memory', {
+          sessionId,
+          ...data,
+        })
+      )
+    ),
 
-  updateMemory: (memoryId: string, data: UpdateMemoryForm) =>
-    apiClient.put<DbMemory>(`/memories/${memoryId}`, data),
+  updateMemory: async (memoryId: string, data: UpdateMemoryForm) => {
+    const [sessionId, key] = memoryId.split(':');
+    return normalizeMemory(
+      await unwrap(
+        apiClient.post<ApiResponse<DbMemory>>('/memory', {
+          sessionId,
+          key,
+          value: data.value,
+        })
+      )
+    );
+  },
 
-  deleteMemory: (memoryId: string) =>
-    apiClient.delete<void>(`/memories/${memoryId}`),
+  deleteMemory: (memoryId: string) => {
+    const [sessionId, key] = memoryId.split(':');
+    return unwrap(
+      apiClient.delete<ApiResponse<void>>(`/memory/${sessionId}/${key}`)
+    );
+  },
 };

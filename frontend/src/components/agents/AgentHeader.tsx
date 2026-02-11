@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bot, Copy, FileJson, ChevronDown } from 'lucide-react';
+import { Bot, Copy, FileJson, ChevronDown, Share2 } from 'lucide-react';
 import type { Agent, Message } from '../../types';
 
 export type CopyFormat = 'text' | 'json';
@@ -9,6 +9,7 @@ interface AgentHeaderProps {
   messages: Message[];
   sessionId?: string | null;
   onCopyLog: (format: CopyFormat) => void;
+  onShareSession?: () => void;
   onNewChat: () => void;
 }
 
@@ -92,6 +93,7 @@ export const AgentHeader = ({
   messages,
   sessionId,
   onCopyLog,
+  onShareSession,
   onNewChat,
 }: AgentHeaderProps) => {
   const [showFormatMenu, setShowFormatMenu] = useState(false);
@@ -191,6 +193,16 @@ export const AgentHeader = ({
             </div>
           )}
         </div>
+
+        <button
+          onClick={onShareSession}
+          className="text-xs px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 text-neutral-600 transition-colors flex items-center gap-1.5"
+          disabled={!sessionId || messages.length === 0}
+          title="Create a shareable link for this conversation"
+        >
+          <Share2 className="h-3.5 w-3.5" />
+          Share
+        </button>
 
         <button
           onClick={onNewChat}

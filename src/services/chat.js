@@ -85,6 +85,106 @@ export function isProceedToBuildRequest(lowerMessage) {
 }
 
 /**
+ * Check if user indicates they launched and want to move into growth coaching.
+ *
+ * @param {string} lowerMessage - The user's message in lowercase
+ * @returns {boolean}
+ */
+export function isLaunchCompleteRequest(lowerMessage) {
+  const launchPhrases = [
+    'we launched',
+    "we're live",
+    'we are live',
+    'went live',
+    'just launched',
+    'product is live',
+    'launch complete'
+  ];
+  return launchPhrases.some(phrase => lowerMessage.includes(phrase));
+}
+
+/**
+ * Check if user is requesting an MVP build plan or prompts.
+ *
+ * @param {string} lowerMessage - The user's message in lowercase
+ * @returns {boolean}
+ */
+export function isMVPPlanningRequest(lowerMessage) {
+  const planningPhrases = [
+    'mvp plan',
+    'build plan',
+    'roadmap',
+    'prompt',
+    'bolt',
+    'cursor',
+    'lovable',
+    'v0',
+    'tech stack',
+    'start building'
+  ];
+  return planningPhrases.some(phrase => lowerMessage.includes(phrase));
+}
+
+/**
+ * Check if user is requesting launch strategy artifacts.
+ *
+ * @param {string} lowerMessage - The user's message in lowercase
+ * @returns {boolean}
+ */
+export function isLaunchPlanningRequest(lowerMessage) {
+  const launchPhrases = [
+    'launch plan',
+    'go to market',
+    'gtm',
+    'marketing plan',
+    'launch checklist',
+    'announcement',
+    'launch copy',
+    'channels'
+  ];
+  return launchPhrases.some(phrase => lowerMessage.includes(phrase));
+}
+
+/**
+ * Check if user is requesting a post-launch growth plan.
+ *
+ * @param {string} lowerMessage - The user's message in lowercase
+ * @returns {boolean}
+ */
+export function isGrowthPlanningRequest(lowerMessage) {
+  const growthPhrases = [
+    'growth plan',
+    'retention',
+    'kpi',
+    'metrics',
+    'user feedback',
+    'iterate',
+    'experiment',
+    'scale'
+  ];
+  return growthPhrases.some(phrase => lowerMessage.includes(phrase));
+}
+
+/**
+ * Check if user indicates MVP is built and ready to launch.
+ *
+ * @param {string} lowerMessage - The user's message in lowercase
+ * @returns {boolean}
+ */
+export function isMVPCompleteRequest(lowerMessage) {
+  const completionPhrases = [
+    'mvp is done',
+    'mvp is complete',
+    'finished the mvp',
+    'built the mvp',
+    "it's ready to launch",
+    'ready to launch',
+    'product is ready'
+  ];
+  return completionPhrases.some(phrase => lowerMessage.includes(phrase));
+}
+
+/**
  * Handle agent-specific response logic
  * Routes messages to appropriate agent methods based on agent type and context
  *
@@ -96,10 +196,17 @@ export function isProceedToBuildRequest(lowerMessage) {
  * @example
  * const response = await handleAgentResponse(onboardingAgent, "session-123", "Hello!", "hello!");
  */
-export async function handleAgentResponse(agent, sessionId, message, lowerMessage) {
+export async function handleAgentResponse(
+  agent,
+  sessionId,
+  message,
+  lowerMessage,
+  onChunk = null,
+  phase = null
+) {
   switch (agent.name) {
     case 'Onboarding':
-      return await agent.chat(sessionId, message);
+      return await agent.chat(sessionId, message, onChunk);
 
     case 'IdeaGenerator': {
       // Check if ideas have already been generated to avoid duplicate "Before I share ideas..." messages
@@ -119,7 +226,7 @@ export async function handleAgentResponse(agent, sessionId, message, lowerMessag
         if (!existingIdeas?.value?.generated && hasAskedForIdeas) {
           await memoryQueries.set(sessionId, 'GeneratedIdeas', { generated: true });
         }
-        return await agent.chat(sessionId, message);
+        return await agent.chat(sessionId, message, onChunk);
       } else {
         // Check if user is ready to go (skip coaching question for "yes", "let's explore", etc.)
         const readyToGoPatterns = [
@@ -140,13 +247,13 @@ export async function handleAgentResponse(agent, sessionId, message, lowerMessag
 
         if (userIsReady) {
           // Skip coaching question - user already confirmed they want ideas
-          const response = await agent.generateIdeas(sessionId, 'User ready for ideas');
+          const response = await agent.generateIdeas(sessionId, 'User ready for ideas', onChunk);
           await memoryQueries.set(sessionId, 'GeneratedIdeas', { generated: true });
           await orchestrator.addMilestone(sessionId, 'ideas_generated');
           return response;
         } else {
           // Ask coaching question first
-          const response = await agent.generate(sessionId);
+          const response = await agent.generate(sessionId, onChunk);
           await memoryQueries.set(sessionId, 'GeneratedIdeas', { generated: true });
           await orchestrator.addMilestone(sessionId, 'ideas_generated');
           return response;
@@ -157,25 +264,75 @@ export async function handleAgentResponse(agent, sessionId, message, lowerMessag
     case 'Validator': {
       const validationDone = await agent.getMemory(sessionId, 'Validator');
       if (!validationDone?.validated) {
-        return await agent.validate(sessionId);
+        return await agent.validate(sessionId, onChunk);
       } else {
-        return await agent.chat(sessionId, message);
+        return await agent.chat(sessionId, message, onChunk);
       }
+    }
+
+    case 'PromptEngineer': {
+      const promptPack = await memoryQueries.get(sessionId, 'PROMPT_PACK');
+      const shouldGeneratePrompts = !promptPack?.value || isMVPPlanningRequest(lowerMessage);
+
+      if (shouldGeneratePrompts) {
+        return await agent.generateBuildPrompts(sessionId, onChunk);
+      }
+
+      return await agent.chat(sessionId, message, onChunk);
     }
 
     case 'Builder': {
-      if (lowerMessage.includes('prd') || lowerMessage.includes('requirements')) {
-        const response = await agent.generatePRD(sessionId);
+      const activePhase = phase || 'strategy';
+      const existingPrd = await memoryQueries.get(sessionId, 'PRD');
+      const hasPrd = Boolean(existingPrd?.value?.content);
+      const explicitPrdRequest =
+        lowerMessage.includes('prd') || lowerMessage.includes('requirements');
+
+      if ((activePhase === 'strategy' && !hasPrd) || explicitPrdRequest) {
+        const response = await agent.generatePRD(sessionId, onChunk);
         await orchestrator.addMilestone(sessionId, 'prd_created');
         return response;
-      } else if (lowerMessage.includes('landing') || lowerMessage.includes('page')) {
-        return await agent.generateLandingPage(sessionId);
-      } else {
-        return await agent.chat(sessionId, message);
       }
+
+      if (activePhase === 'building' && isMVPPlanningRequest(lowerMessage)) {
+        const response = await agent.generateMVPPlan(sessionId, onChunk);
+        await orchestrator.addMilestone(sessionId, 'prompts_generated');
+        await agent.markMVPStarted(sessionId);
+        return response;
+      }
+
+      if (lowerMessage.includes('landing') || lowerMessage.includes('page')) {
+        return await agent.generateLandingPage(sessionId, onChunk);
+      }
+
+      return await agent.chat(sessionId, message, onChunk);
+    }
+
+    case 'GoToMarket': {
+      const launchPlan = await memoryQueries.get(sessionId, 'LAUNCH_PLAN');
+      const shouldGeneratePlan = !launchPlan?.value || isLaunchPlanningRequest(lowerMessage);
+
+      if (shouldGeneratePlan) {
+        const response = await agent.generateLaunchPlan(sessionId, onChunk);
+        await orchestrator.addMilestone(sessionId, 'launch_plan_created');
+        return response;
+      }
+
+      return await agent.chat(sessionId, message, onChunk);
+    }
+
+    case 'GrowthCoach': {
+      const growthPlan = await memoryQueries.get(sessionId, 'GROWTH_PLAN');
+      const shouldGeneratePlan = !growthPlan?.value || isGrowthPlanningRequest(lowerMessage);
+
+      if (shouldGeneratePlan) {
+        return await agent.generateGrowthPlan(sessionId, onChunk);
+      }
+
+      return await agent.chat(sessionId, message, onChunk);
     }
 
     default:
-      return await agent.chat(sessionId, message);
+      return await agent.chat(sessionId, message, onChunk);
   }
 }

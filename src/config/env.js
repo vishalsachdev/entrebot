@@ -21,6 +21,9 @@ export const config = {
   // Server
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
+  app: {
+    frontendUrl: process.env.FRONTEND_URL || ''
+  },
 
   // Supabase
   supabase: {
@@ -40,6 +43,14 @@ export const config = {
   // WhatsApp (optional)
   whatsapp: {
     sessionPath: process.env.WHATSAPP_SESSION_PATH || './whatsapp_session'
+  },
+
+  // Market research providers (optional)
+  marketResearch: {
+    provider: process.env.MARKET_RESEARCH_PROVIDER || 'auto',
+    tavilyApiKey: process.env.TAVILY_API_KEY || '',
+    serpApiKey: process.env.SERPAPI_KEY || '',
+    maxResults: parseInt(process.env.MARKET_RESEARCH_MAX_RESULTS || '5', 10)
   },
 
   // Security

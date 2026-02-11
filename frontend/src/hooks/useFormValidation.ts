@@ -7,7 +7,7 @@ export type ValidationRules<T> = {
   }>;
 };
 
-export function useFormValidation<T extends Record<string, any>>(
+export function useFormValidation<T extends Record<string, unknown>>(
   initialValues: T,
   validationRules: ValidationRules<T>
 ) {
@@ -15,7 +15,10 @@ export function useFormValidation<T extends Record<string, any>>(
   const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>({});
   const [touched, setTouched] = useState<Partial<Record<keyof T, boolean>>>({});
 
-  const validateField = (name: keyof T, value: any): string | undefined => {
+  const validateField = <K extends keyof T>(
+    name: K,
+    value: T[K]
+  ): string | undefined => {
     const rules = validationRules[name];
     if (!rules) return undefined;
 
@@ -31,7 +34,7 @@ export function useFormValidation<T extends Record<string, any>>(
     const newErrors: Partial<Record<keyof T, string>> = {};
     let isValid = true;
 
-    for (const name in validationRules) {
+    for (const name of Object.keys(validationRules) as Array<keyof T>) {
       const error = validateField(name, values[name]);
       if (error) {
         newErrors[name] = error;
@@ -43,22 +46,22 @@ export function useFormValidation<T extends Record<string, any>>(
     return isValid;
   };
 
-  const handleChange = (name: keyof T, value: any) => {
-    setValues((prev) => ({ ...prev, [name]: value }));
+  const handleChange = <K extends keyof T>(name: K, value: T[K]) => {
+    setValues(prev => ({ ...prev, [name]: value }));
 
     // Clear error when user starts typing
     if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: undefined }));
+      setErrors(prev => ({ ...prev, [name]: undefined }));
     }
   };
 
   const handleBlur = (name: keyof T) => {
-    setTouched((prev) => ({ ...prev, [name]: true }));
+    setTouched(prev => ({ ...prev, [name]: true }));
 
     // Validate on blur
     const error = validateField(name, values[name]);
     if (error) {
-      setErrors((prev) => ({ ...prev, [name]: error }));
+      setErrors(prev => ({ ...prev, [name]: error }));
     }
   };
 
@@ -84,7 +87,7 @@ export function useFormValidation<T extends Record<string, any>>(
 // Common validation rules
 export const validationRules = {
   required: (message = 'This field is required') => ({
-    validate: (value: any) => {
+    validate: (value: unknown) => {
       if (typeof value === 'string') return value.trim().length > 0;
       return value !== null && value !== undefined;
     },
@@ -107,7 +110,8 @@ export const validationRules = {
   }),
 
   matches: (field: string, message = 'Fields do not match') => ({
-    validate: (value: any, formData: any) => value === formData[field],
+    validate: (value: unknown, formData: Record<string, unknown>) =>
+      value === formData[field],
     message,
   }),
 

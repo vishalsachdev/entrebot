@@ -11,6 +11,7 @@ import { getSupabase } from '../database/supabase.js';
 import { logger } from '../config/logger.js';
 import Joi from 'joi';
 import { validateBody } from '../middleware/validation.js';
+import { requireSessionOwnership, resolveAuthenticatedAppUserId } from '../utils/authz.js';
 
 const router = express.Router();
 
@@ -23,15 +24,27 @@ const setMemorySchema = Joi.object({
   value: Joi.any().required()
 });
 
+const setMemoryBatchSchema = Joi.object({
+  sessionId: Joi.string().required(),
+  data: Joi.object().required()
+});
+
+async function ensureSessionAccess(req, sessionId, actionVerb = 'access') {
+  const userId = await resolveAuthenticatedAppUserId(req);
+  await requireSessionOwnership(sessionId, userId, actionVerb);
+}
+
 /**
  * POST /api/memory
  * Store memory key-value pair
  */
 router.post(
   '/',
+  authenticate,
   validateBody(setMemorySchema),
   asyncHandler(async (req, res) => {
     const { sessionId, key, value } = req.body;
+    await ensureSessionAccess(req, sessionId, 'update');
 
     logger.info(`Storing memory for session ${sessionId}, key: ${key}`);
 
@@ -46,11 +59,38 @@ router.post(
 
     res.status(201).json({
       success: true,
-      data: {
-        sessionId,
+      data: result.memory
+    });
+  })
+);
+
+/**
+ * POST /api/memory/batch
+ * Store multiple key-value pairs in one request
+ */
+router.post(
+  '/batch',
+  authenticate,
+  validateBody(setMemoryBatchSchema),
+  asyncHandler(async (req, res) => {
+    const { sessionId, data } = req.body;
+    await ensureSessionAccess(req, sessionId, 'update');
+
+    logger.info(`Batch storing memory for session ${sessionId}, keys: ${Object.keys(data).length}`);
+
+    const result = await memoryQueries.setMultiple(sessionId, data);
+    if (!result.success) {
+      logger.error(`Failed to store memory batch: ${result.error}`);
+      throw new Error(result.error);
+    }
+
+    res.status(201).json({
+      success: true,
+      data: Object.entries(data).map(([key, value]) => ({
+        session_id: sessionId,
         key,
-        stored: true
-      }
+        value
+      }))
     });
   })
 );
@@ -61,8 +101,10 @@ router.post(
  */
 router.get(
   '/:sessionId/:key',
+  authenticate,
   asyncHandler(async (req, res) => {
     const { sessionId, key } = req.params;
+    await ensureSessionAccess(req, sessionId, 'access');
 
     logger.info(`Fetching memory for session ${sessionId}, key: ${key}`);
 
@@ -99,8 +141,10 @@ router.get(
  */
 router.get(
   '/:sessionId',
+  authenticate,
   asyncHandler(async (req, res) => {
     const { sessionId } = req.params;
+    await ensureSessionAccess(req, sessionId, 'access');
 
     logger.info(`Fetching all memory for session: ${sessionId}`);
 
@@ -134,6 +178,7 @@ router.delete(
   authenticate,
   asyncHandler(async (req, res) => {
     const { sessionId, key } = req.params;
+    await ensureSessionAccess(req, sessionId, 'delete');
 
     logger.info(`Deleting memory for session ${sessionId}, key: ${key}`);
 
@@ -156,6 +201,36 @@ router.delete(
       data: {
         sessionId,
         key,
+        deleted: true
+      }
+    });
+  })
+);
+
+/**
+ * DELETE /api/memory/:sessionId
+ * Delete all memory entries for a session
+ */
+router.delete(
+  '/:sessionId',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const { sessionId } = req.params;
+    await ensureSessionAccess(req, sessionId, 'delete');
+
+    logger.info(`Deleting all memory for session ${sessionId}`);
+
+    const supabase = getSupabase();
+    const { error } = await supabase.from('memory').delete().eq('session_id', sessionId);
+    if (error) {
+      logger.error(`Failed to clear memory: ${error.message}`);
+      throw new Error(error.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        sessionId,
         deleted: true
       }
     });

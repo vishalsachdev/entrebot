@@ -288,6 +288,12 @@ Tech Stack Recommendation: [Specific tools with reasons]`
     await this.addMilestone(sessionId, 'mvp_started');
 
     // Store build start context
+    await this.setMemory(sessionId, 'MVP', {
+      started: true,
+      complete: false,
+      startedAt: new Date().toISOString()
+    });
+
     await this.setMemory(sessionId, 'MVP_BUILD', {
       startedAt: new Date().toISOString(),
       status: 'in_progress'
@@ -302,6 +308,13 @@ Tech Stack Recommendation: [Specific tools with reasons]`
 
     // Update build context
     const buildContext = (await this.getMemory(sessionId, 'MVP_BUILD')) || {};
+    await this.setMemory(sessionId, 'MVP', {
+      started: true,
+      complete: true,
+      completedAt: new Date().toISOString(),
+      ...details
+    });
+
     await this.setMemory(sessionId, 'MVP_BUILD', {
       ...buildContext,
       completedAt: new Date().toISOString(),

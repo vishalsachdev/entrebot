@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS projects (
     status IN (
       'ideation',
       'validation',
+      'strategy',
       'planning',
       'building',
       'launched',

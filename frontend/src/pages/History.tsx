@@ -9,6 +9,9 @@ import {
   Loader2,
   Trash2,
   Bot,
+  Search,
+  FileText,
+  FileJson,
 } from 'lucide-react';
 import {
   Container,
@@ -16,6 +19,7 @@ import {
   Card,
   CardContent,
   Button,
+  Input,
 } from '../components/ui';
 import { cn } from '../utils/cn';
 
@@ -31,6 +35,10 @@ interface Session {
   };
   messageCount?: number;
   lastMessage?: string;
+  message_count?: number;
+  last_message?: string;
+  last_message_at?: string;
+  current_phase?: string;
   progress?: {
     currentPhase: string;
     phaseName: string;
@@ -42,41 +50,105 @@ const History = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeActionId, setActiveActionId] = useState<string | null>(null);
 
   useEffect(() => {
     loadSessions();
   }, []);
 
-  const loadSessions = async () => {
+  const loadSessions = async (query = '') => {
     try {
       setLoading(true);
-      // Get user email from localStorage
-      const userEmail = localStorage.getItem('user')
-        ? JSON.parse(localStorage.getItem('user')!).email
-        : 'demo@example.com';
+      setError(null);
 
-      // Fetch sessions for this user
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Please log in to view your history.');
+      }
+
+      const params = new URLSearchParams({
+        includeSummary: 'true',
+        limit: '100',
+      });
+      if (query.trim()) {
+        params.set('q', query.trim());
+      }
+
+      const response = await fetch(`${API_BASE_URL}/sessions/mine?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to load conversation history');
+      }
+
+      const sortedSessions = (data.data || []).sort(
+        (a: Session, b: Session) =>
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      );
+      setSessions(sortedSessions);
+    } catch (err) {
+      console.error('Failed to load sessions:', err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to load conversation history'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const exportSession = async (
+    sessionId: string,
+    format: 'json' | 'text',
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    setActiveActionId(`export-${sessionId}-${format}`);
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Please log in to export conversation history.');
+      }
+
       const response = await fetch(
-        `${API_BASE_URL}/sessions?email=${encodeURIComponent(userEmail)}`
+        `${API_BASE_URL}/sessions/${sessionId}/export?format=${format}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
       const data = await response.json();
 
-      if (data.success && data.data) {
-        // Sort by updated_at descending
-        const sortedSessions = data.data.sort(
-          (a: Session, b: Session) =>
-            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-        );
-
-        // Set sessions immediately without extra API calls
-        // Progress/count will be fetched lazily or shown as defaults
-        setSessions(sortedSessions);
+      if (!response.ok || !data.success || !data.data?.content) {
+        throw new Error(data.error || 'Failed to export conversation');
       }
+
+      const mimeType =
+        format === 'json'
+          ? 'application/json;charset=utf-8'
+          : 'text/plain;charset=utf-8';
+      const blob = new Blob([data.data.content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download =
+        data.data.filename ||
+        `venturebot-session-${sessionId}.${format === 'json' ? 'json' : 'txt'}`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Failed to load sessions:', err);
-      setError('Failed to load conversation history');
+      console.error('Failed to export session:', err);
+      setError(
+        err instanceof Error ? err.message : 'Failed to export conversation'
+      );
     } finally {
-      setLoading(false);
+      setActiveActionId(null);
     }
   };
 
@@ -91,9 +163,23 @@ const History = () => {
     if (!confirm('Are you sure you want to delete this conversation?')) return;
 
     try {
-      // For now, just remove from local state
-      // TODO: Add backend endpoint to delete session
-      setSessions(sessions.filter(s => s.id !== sessionId));
+      setActiveActionId(`delete-${sessionId}`);
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Please log in to delete conversation history.');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to delete conversation');
+      }
+
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
 
       // If this was the current session, clear it
       if (localStorage.getItem('venturebot_session_id') === sessionId) {
@@ -101,6 +187,9 @@ const History = () => {
       }
     } catch (err) {
       console.error('Failed to delete session:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete session');
+    } finally {
+      setActiveActionId(null);
     }
   };
 
@@ -133,6 +222,30 @@ const History = () => {
           description="View and continue your past conversations"
         />
 
+        <div className="mb-4 flex flex-col sm:flex-row gap-2">
+          <Input
+            placeholder="Search conversations by content, session ID, or agent..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            leftIcon={<Search className="h-4 w-4" />}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                loadSessions(searchQuery);
+              }
+            }}
+          />
+          <Button onClick={() => loadSessions(searchQuery)}>Search</Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setSearchQuery('');
+              loadSessions('');
+            }}
+          >
+            Clear
+          </Button>
+        </div>
+
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
@@ -141,7 +254,10 @@ const History = () => {
           <Card className="text-center py-12">
             <CardContent>
               <p className="text-red-600">{error}</p>
-              <Button onClick={loadSessions} className="mt-4">
+              <Button
+                onClick={() => loadSessions(searchQuery)}
+                className="mt-4"
+              >
                 Retry
               </Button>
             </CardContent>
@@ -210,18 +326,58 @@ const History = () => {
                             </span>
                             <span className="flex items-center gap-1">
                               <MessageSquare className="h-3 w-3" />
-                              {session.metadata?.agent || 'onboarding'}
+                              {session.message_count || 0} messages
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Bot className="h-3 w-3" />
+                              {session.current_phase ||
+                                session.metadata?.agent ||
+                                'discovery'}
                             </span>
                           </div>
+                          {session.last_message && (
+                            <p className="text-xs text-neutral-600 mt-1 truncate max-w-[440px]">
+                              {session.last_message}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
+                          onClick={e => exportSession(session.id, 'text', e)}
+                          className="p-2 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors"
+                          title="Export as text"
+                          disabled={activeActionId !== null}
+                        >
+                          {activeActionId === `export-${session.id}-text` ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <FileText className="h-4 w-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={e => exportSession(session.id, 'json', e)}
+                          className="p-2 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors"
+                          title="Export as JSON"
+                          disabled={activeActionId !== null}
+                        >
+                          {activeActionId === `export-${session.id}-json` ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <FileJson className="h-4 w-4" />
+                          )}
+                        </button>
+                        <button
                           onClick={e => deleteSession(session.id, e)}
                           className="p-2 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete conversation"
+                          disabled={activeActionId !== null}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          {activeActionId === `delete-${session.id}` ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
                         </button>
                         <ChevronRight className="h-5 w-5 text-neutral-400" />
                       </div>

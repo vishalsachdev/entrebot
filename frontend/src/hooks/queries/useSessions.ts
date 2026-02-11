@@ -38,7 +38,11 @@ export const useSessionWithData = (
   return useQuery({
     queryKey: sessionKeys.withData(sessionId),
     queryFn: () =>
-      sessionService.getSessionWithData(sessionId, includeMessages, includeMemory),
+      sessionService.getSessionWithData(
+        sessionId,
+        includeMessages,
+        includeMemory
+      ),
     enabled: !!sessionId,
   });
 };
@@ -53,12 +57,12 @@ export const useCreateSession = () => {
       metadata,
     }: {
       userId: string;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
     }) => sessionService.createSession(userId, metadata),
     onSuccess: (newSession, { userId }) => {
       // Invalidate user sessions list
       queryClient.invalidateQueries({ queryKey: sessionKeys.list(userId) });
-      
+
       // Add to cache
       queryClient.setQueryData(sessionKeys.detail(newSession.id), newSession);
     },
@@ -74,10 +78,12 @@ export const useUpdateSession = () => {
       metadata,
     }: {
       sessionId: string;
-      metadata: Record<string, any>;
+      metadata: Record<string, unknown>;
     }) => sessionService.updateSession(sessionId, metadata),
     onMutate: async ({ sessionId, metadata }) => {
-      await queryClient.cancelQueries({ queryKey: sessionKeys.detail(sessionId) });
+      await queryClient.cancelQueries({
+        queryKey: sessionKeys.detail(sessionId),
+      });
 
       const previousSession = queryClient.getQueryData<DbSession>(
         sessionKeys.detail(sessionId)
@@ -102,7 +108,9 @@ export const useUpdateSession = () => {
       }
     },
     onSettled: (_data, _error, { sessionId }) => {
-      queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
+      queryClient.invalidateQueries({
+        queryKey: sessionKeys.detail(sessionId),
+      });
     },
   });
 };

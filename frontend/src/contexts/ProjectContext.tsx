@@ -75,6 +75,7 @@ function mapDbStatusToFrontend(
   const statusMap: Record<DbProject['status'], Project['status']> = {
     ideation: 'active',
     validation: 'active',
+    strategy: 'active',
     planning: 'active',
     building: 'active',
     launched: 'completed',

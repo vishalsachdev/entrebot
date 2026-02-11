@@ -5,6 +5,7 @@
 
 import { BaseAgent } from './base.js';
 import { conversationQueries } from '../database/queries.js';
+import { performMarketResearch } from '../services/market-research.js';
 
 const SYSTEM_PROMPT = `You are VentureBot, a market validation expert who gives honest, actionable feedback.
 
@@ -115,10 +116,38 @@ Would you like to start with the Onboarding agent to discover your pain points? 
         return guidanceMessage;
       }
 
+      const researchQuery = `${selectedIdea.idea} ${userPain?.description || ''} market size competitors pricing`;
+      const research = await performMarketResearch(researchQuery);
+      const hasResearch = research.success && research.findings.length > 0;
+      let evidenceContext =
+        'No external research data was available. Clearly state uncertainty and avoid fabricated claims.';
+      if (hasResearch) {
+        evidenceContext = research.findings
+          .map(
+            (item, index) =>
+              `${index + 1}. ${item.title}\nURL: ${item.url}\nSnippet: ${item.snippet}`
+          )
+          .join('\n\n');
+      }
+
       const messages = [
         {
+          role: 'system',
+          content: `External market research context:
+${evidenceContext}
+
+Citation rule:
+- When external sources are provided, cite specific URLs inline as: [Source: https://...]
+- Do not invent citations.
+- If evidence is missing for a claim, explicitly say so.`
+        },
+        {
           role: 'user',
-          content: `Idea: ${selectedIdea.idea}\nPain point: ${userPain?.description || 'Not specified'}\n\nPlease validate this idea across all dimensions and provide detailed analysis.`
+          content: `Idea: ${selectedIdea.idea}
+Pain point: ${userPain?.description || 'Not specified'}
+
+Please validate this idea across all dimensions and provide detailed analysis.
+${hasResearch ? 'Use the external evidence above and include citations.' : 'Use best-effort reasoning and note where evidence is unavailable.'}`
         }
       ];
 
@@ -127,13 +156,13 @@ Would you like to start with the Onboarding agent to discover your pain points? 
         const response = await this.stream(messages, onChunk);
 
         // Parse and store validation results
-        await this.storeValidationResults(sessionId, response, selectedIdea.id);
+        await this.storeValidationResults(sessionId, response, selectedIdea.id, research);
 
         return response;
       }
 
       const response = await this.send(messages);
-      await this.storeValidationResults(sessionId, response, selectedIdea.id);
+      await this.storeValidationResults(sessionId, response, selectedIdea.id, research);
 
       return response;
     } catch (error) {
@@ -250,7 +279,7 @@ Would you like to start with the Onboarding agent to discover your pain points? 
   /**
    * Store validation results in memory
    */
-  async storeValidationResults(sessionId, response, ideaId) {
+  async storeValidationResults(sessionId, response, ideaId, research = null) {
     try {
       // Extract scores using robust multi-pattern matching
       const feasibility = this.extractScore(response, 'feasibility');
@@ -283,7 +312,10 @@ Would you like to start with the Onboarding agent to discover your pain points? 
         validationTest: validationTest,
         validated: true,
         scoresExtracted: scores.length,
-        notes: response.substring(0, 1000)
+        notes: response.substring(0, 1000),
+        citations: research?.citations || [],
+        researchFindings: research?.findings || [],
+        researchProvider: research?.provider || 'none'
       };
 
       await this.setMemory(sessionId, 'Validator', validationData);

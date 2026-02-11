@@ -423,7 +423,7 @@ export const sessionService = {
     metadata?: Record<string, unknown>
   ): Promise<DbSession> {
     const response = await apiClient.post<ApiResponse<DbSession>>('/sessions', {
-      user_id: userId,
+      userId,
       metadata: metadata || {},
     });
     return response.data;
@@ -457,7 +457,7 @@ export const sessionService = {
    */
   async getUserSessions(userId: string, limit = 50): Promise<DbSession[]> {
     const response = await apiClient.get<ApiResponse<DbSession[]>>(
-      `/users/${userId}/sessions?limit=${limit}`
+      `/sessions/users/${userId}/sessions?limit=${limit}`
     );
     return response.data;
   },
@@ -565,7 +565,7 @@ export const conversationService = {
     const response = await apiClient.post<ApiResponse<DbConversation>>(
       '/conversations',
       {
-        session_id: sessionId,
+        sessionId,
         role,
         content,
         metadata: metadata || {},
@@ -591,7 +591,7 @@ export const conversationService = {
     offset = 0
   ): Promise<DbConversation[]> {
     const response = await apiClient.get<ApiResponse<DbConversation[]>>(
-      `/sessions/${sessionId}/conversations?limit=${limit}&offset=${offset}`
+      `/conversations/${sessionId}?limit=${limit}&offset=${offset}`
     );
     return response.data;
   },
@@ -622,9 +622,7 @@ export const conversationService = {
         last: DbConversation[];
         total: number;
       }>
-    >(
-      `/sessions/${sessionId}/conversations/summary?first=${firstN}&last=${lastN}`
-    );
+    >(`/conversations/${sessionId}/summary?first=${firstN}&last=${lastN}`);
     return response.data;
   },
 
@@ -639,7 +637,7 @@ export const conversationService = {
    */
   async getMessage(messageId: string): Promise<DbConversation> {
     const response = await apiClient.get<ApiResponse<DbConversation>>(
-      `/conversations/${messageId}`
+      `/conversations/message/${messageId}`
     );
     return response.data;
   },
@@ -697,7 +695,7 @@ export const conversationService = {
     limit = 20
   ): Promise<DbConversation[]> {
     const response = await apiClient.get<ApiResponse<DbConversation[]>>(
-      `/sessions/${sessionId}/conversations/search?q=${encodeURIComponent(query)}&limit=${limit}`
+      `/conversations/${sessionId}/search?q=${encodeURIComponent(query)}&limit=${limit}`
     );
     return response.data;
   },
@@ -731,7 +729,7 @@ export const memoryService = {
     value: unknown
   ): Promise<DbMemory> {
     const response = await apiClient.post<ApiResponse<DbMemory>>('/memory', {
-      session_id: sessionId,
+      sessionId,
       key,
       value,
     });
@@ -750,9 +748,9 @@ export const memoryService = {
    */
   async getMemory(sessionId: string, key: string): Promise<unknown | null> {
     try {
-      const response = await apiClient.get<ApiResponse<DbMemory>>(
-        `/sessions/${sessionId}/memory/${encodeURIComponent(key)}`
-      );
+      const response = await apiClient.get<
+        ApiResponse<{ sessionId: string; key: string; value: unknown }>
+      >(`/memory/${sessionId}/${encodeURIComponent(key)}`);
       return response.data.value;
     } catch (error) {
       if ((error as ApiError).status === 404) {
@@ -773,18 +771,14 @@ export const memoryService = {
    * // Returns: { user_preferences: {...}, journey_state: {...}, ... }
    */
   async getAllMemory(sessionId: string): Promise<Record<string, unknown>> {
-    const response = await apiClient.get<ApiResponse<DbMemory[]>>(
-      `/sessions/${sessionId}/memory`
-    );
-
-    // Convert array of memory objects to key-value object
-    return response.data.reduce(
-      (acc, memory) => {
-        acc[memory.key] = memory.value;
-        return acc;
-      },
-      {} as Record<string, unknown>
-    );
+    const response = await apiClient.get<
+      ApiResponse<{
+        sessionId: string;
+        memory: Record<string, unknown>;
+        count: number;
+      }>
+    >(`/memory/${sessionId}`);
+    return response.data.memory || {};
   },
 
   /**
@@ -802,10 +796,17 @@ export const memoryService = {
     key: string
   ): Promise<DbMemory | null> {
     try {
-      const response = await apiClient.get<ApiResponse<DbMemory>>(
-        `/sessions/${sessionId}/memory/${encodeURIComponent(key)}`
-      );
-      return response.data;
+      const response = await apiClient.get<
+        ApiResponse<{ sessionId: string; key: string; value: unknown }>
+      >(`/memory/${sessionId}/${encodeURIComponent(key)}`);
+      return {
+        id: `${sessionId}:${key}`,
+        session_id: sessionId,
+        key: response.data.key,
+        value: response.data.value,
+        created_at: '',
+        updated_at: '',
+      };
     } catch (error) {
       if ((error as ApiError).status === 404) {
         return null;
@@ -830,10 +831,11 @@ export const memoryService = {
     key: string,
     value: unknown
   ): Promise<DbMemory> {
-    const response = await apiClient.patch<ApiResponse<DbMemory>>(
-      `/sessions/${sessionId}/memory/${encodeURIComponent(key)}`,
-      { value }
-    );
+    const response = await apiClient.post<ApiResponse<DbMemory>>('/memory', {
+      sessionId,
+      key,
+      value,
+    });
     return response.data;
   },
 
@@ -848,7 +850,7 @@ export const memoryService = {
    */
   async deleteMemory(sessionId: string, key: string): Promise<void> {
     await apiClient.delete<ApiResponse<void>>(
-      `/sessions/${sessionId}/memory/${encodeURIComponent(key)}`
+      `/memory/${sessionId}/${encodeURIComponent(key)}`
     );
   },
 
@@ -861,7 +863,7 @@ export const memoryService = {
    * await memoryService.clearMemory('session-123');
    */
   async clearMemory(sessionId: string): Promise<void> {
-    await apiClient.delete<ApiResponse<void>>(`/sessions/${sessionId}/memory`);
+    await apiClient.delete<ApiResponse<void>>(`/memory/${sessionId}`);
   },
 
   /**
@@ -885,7 +887,7 @@ export const memoryService = {
     const response = await apiClient.post<ApiResponse<DbMemory[]>>(
       '/memory/batch',
       {
-        session_id: sessionId,
+        sessionId,
         data,
       }
     );
@@ -936,7 +938,7 @@ export const projectService = {
    */
   async getUserProjects(userId: string): Promise<DbProject[]> {
     const response = await apiClient.get<ApiResponse<DbProject[]>>(
-      `/v1/projects?userId=${encodeURIComponent(userId)}`
+      `/projects?userId=${encodeURIComponent(userId)}`
     );
     return response.data;
   },
@@ -955,7 +957,7 @@ export const projectService = {
   ): Promise<DbProject & { sessions?: DbSession[] }> {
     const response = await apiClient.get<
       ApiResponse<DbProject & { sessions?: DbSession[] }>
-    >(`/v1/projects/${projectId}`);
+    >(`/projects/${projectId}`);
     return response.data;
   },
 
@@ -981,7 +983,7 @@ export const projectService = {
     }
   ): Promise<DbProject> {
     const response = await apiClient.put<ApiResponse<DbProject>>(
-      `/v1/projects/${projectId}`,
+      `/projects/${projectId}`,
       updates
     );
     return response.data;
@@ -997,7 +999,7 @@ export const projectService = {
    */
   async deleteProject(projectId: string): Promise<void> {
     await apiClient.delete<ApiResponse<{ id: string; deleted: boolean }>>(
-      `/v1/projects/${projectId}`
+      `/projects/${projectId}`
     );
   },
 
@@ -1012,7 +1014,7 @@ export const projectService = {
    */
   async getProjectSessions(projectId: string): Promise<DbSession[]> {
     const response = await apiClient.get<ApiResponse<DbSession[]>>(
-      `/v1/projects/${projectId}/sessions`
+      `/projects/${projectId}/sessions`
     );
     return response.data;
   },
@@ -1078,11 +1080,17 @@ export const chatService = {
     let responseAgent = agent;
 
     try {
+      const token = localStorage.getItem('auth_token');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${API_BASE_URL}/chat/stream`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           sessionId,
           message,

@@ -22,7 +22,7 @@ export const userQueries = {
           {
             email,
             name: userData.name || null,
-            phone: userData.phone || null,
+            phone: userData.phone || userData.phone_number || null,
             created_at: new Date().toISOString()
           }
         ])
@@ -63,12 +63,19 @@ export const userQueries = {
   async update(userId, updates) {
     try {
       const supabase = getSupabase();
+      const payload = {
+        ...updates,
+        updated_at: new Date().toISOString()
+      };
+
+      if (Object.prototype.hasOwnProperty.call(payload, 'phone_number')) {
+        payload.phone = payload.phone_number;
+        delete payload.phone_number;
+      }
+
       const { data, error } = await supabase
         .from('users')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
+        .update(payload)
         .eq('id', userId)
         .select()
         .single();
@@ -79,6 +86,51 @@ export const userQueries = {
       return { success: true, user: data };
     } catch (error) {
       logger.error('Error updating user:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Get user by ID
+   */
+  async getById(userId) {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase.from('users').select('*').eq('id', userId).single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+      return { success: true, user: data };
+    } catch (error) {
+      logger.error('Error fetching user by id:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Delete user by ID
+   */
+  async delete(userId) {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId)
+        .select('id')
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return { success: true, deleted: false };
+        }
+        throw error;
+      }
+
+      return { success: true, deleted: !!data };
+    } catch (error) {
+      logger.error('Error deleting user:', error);
       return { success: false, error: error.message };
     }
   }
@@ -307,6 +359,63 @@ export const sessionQueries = {
       logger.error('Error fetching user sessions:', error);
       return { success: false, error: error.message };
     }
+  },
+
+  /**
+   * Delete session by ID
+   */
+  async delete(sessionId) {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('id', sessionId)
+        .select('id')
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return { success: true, deleted: false };
+        }
+        throw error;
+      }
+      return { success: true, deleted: !!data };
+    } catch (error) {
+      logger.error('Error deleting session:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Update session
+   */
+  async update(sessionId, updates = {}) {
+    try {
+      const supabase = getSupabase();
+      const payload = {
+        ...updates,
+        updated_at: new Date().toISOString()
+      };
+
+      const { data, error } = await supabase
+        .from('sessions')
+        .update(payload)
+        .eq('id', sessionId)
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return { success: true, session: null };
+        }
+        throw error;
+      }
+      return { success: true, session: data };
+    } catch (error) {
+      logger.error('Error updating session:', error);
+      return { success: false, error: error.message };
+    }
   }
 };
 
@@ -345,9 +454,39 @@ export const conversationQueries = {
   },
 
   /**
+   * Store multiple conversation messages
+   */
+  async createMany(sessionId, messages = []) {
+    try {
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return { success: true, messages: [] };
+      }
+
+      const supabase = getSupabase();
+      const rows = messages.map(msg => ({
+        session_id: sessionId,
+        role: msg.role,
+        content: msg.content,
+        metadata: msg.metadata || {},
+        created_at: new Date().toISOString()
+      }));
+
+      const { data, error } = await supabase.from('conversations').insert(rows).select();
+
+      if (error) {
+        throw error;
+      }
+      return { success: true, messages: data || [] };
+    } catch (error) {
+      logger.error('Error storing conversation messages:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Get conversation history
    */
-  async getHistory(sessionId, limit = 50) {
+  async getHistory(sessionId, limit = 50, offset = 0) {
     try {
       const supabase = getSupabase();
       const { data, error } = await supabase
@@ -355,7 +494,7 @@ export const conversationQueries = {
         .select('*')
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true })
-        .limit(limit);
+        .range(offset, offset + limit - 1);
 
       if (error) {
         throw error;
@@ -363,6 +502,219 @@ export const conversationQueries = {
       return { success: true, messages: data || [] };
     } catch (error) {
       logger.error('Error fetching conversation history:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Update conversation message by ID
+   */
+  async update(messageId, updates) {
+    try {
+      const supabase = getSupabase();
+      const payload = {};
+
+      if (updates.content !== undefined) {
+        payload.content = updates.content;
+      }
+      if (updates.metadata !== undefined) {
+        payload.metadata = updates.metadata;
+      }
+
+      if (Object.keys(payload).length === 0) {
+        return { success: false, error: 'No valid update fields provided' };
+      }
+
+      const { data, error } = await supabase
+        .from('conversations')
+        .update(payload)
+        .eq('id', messageId)
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return { success: true, message: null };
+        }
+        throw error;
+      }
+
+      return { success: true, message: data || null };
+    } catch (error) {
+      logger.error('Error updating conversation message:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Delete conversation message by ID
+   */
+  async delete(messageId) {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', messageId)
+        .select('id')
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return { success: true, deleted: false };
+        }
+        throw error;
+      }
+
+      return { success: true, deleted: !!data };
+    } catch (error) {
+      logger.error('Error deleting conversation message:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Get conversation message by ID
+   */
+  async getById(messageId) {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('id', messageId)
+        .single();
+
+      if (error && error.code === 'PGRST116') {
+        return { success: true, message: null };
+      }
+      if (error) {
+        throw error;
+      }
+
+      return { success: true, message: data };
+    } catch (error) {
+      logger.error('Error fetching conversation message:', error);
+      return { success: false, error: error.message };
+    }
+  }
+};
+
+/**
+ * Shared Conversation Operations
+ */
+export const sharedConversationQueries = {
+  /**
+   * Create a shared conversation snapshot
+   */
+  async create(payload) {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('shared_conversations')
+        .insert([payload])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+      return { success: true, share: data };
+    } catch (error) {
+      logger.error('Error creating shared conversation:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Get shared conversation by share ID
+   */
+  async getByShareId(shareId, { publicOnly = false } = {}) {
+    try {
+      const supabase = getSupabase();
+      let query = supabase
+        .from('shared_conversations')
+        .select('*')
+        .eq('share_id', shareId)
+        .is('revoked_at', null);
+
+      if (publicOnly) {
+        query = query.eq('public', true);
+      }
+
+      const { data, error } = await query.single();
+
+      if (error && error.code === 'PGRST116') {
+        return { success: true, share: null };
+      }
+      if (error) {
+        throw error;
+      }
+
+      return { success: true, share: data };
+    } catch (error) {
+      logger.error('Error fetching shared conversation:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Increment a counter field on shared conversation
+   */
+  async incrementCounter(shareId, field) {
+    try {
+      const existing = await this.getByShareId(shareId);
+      if (!existing.success) {
+        return existing;
+      }
+      if (!existing.share) {
+        return { success: true, share: null };
+      }
+
+      const currentValue = parseInt(existing.share[field] || 0, 10);
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('shared_conversations')
+        .update({ [field]: currentValue + 1 })
+        .eq('share_id', shareId)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+      return { success: true, share: data };
+    } catch (error) {
+      logger.error(`Error incrementing ${field}:`, error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Revoke a shared conversation
+   */
+  async revoke(shareId, ownerUserId) {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('shared_conversations')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('share_id', shareId)
+        .eq('owner_user_id', ownerUserId)
+        .is('revoked_at', null)
+        .select()
+        .single();
+
+      if (error && error.code === 'PGRST116') {
+        return { success: true, share: null };
+      }
+      if (error) {
+        throw error;
+      }
+
+      return { success: true, share: data };
+    } catch (error) {
+      logger.error('Error revoking shared conversation:', error);
       return { success: false, error: error.message };
     }
   }
@@ -673,6 +1025,7 @@ export default {
   projectQueries,
   sessionQueries,
   conversationQueries,
+  sharedConversationQueries,
   memoryQueries,
   batchQueries
 };

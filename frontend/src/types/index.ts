@@ -153,6 +153,7 @@ export interface DbProject {
   status:
     | 'ideation'
     | 'validation'
+    | 'strategy'
     | 'planning'
     | 'building'
     | 'launched'

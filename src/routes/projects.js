@@ -10,6 +10,7 @@ import { projectQueries, sessionQueries } from '../database/queries.js';
 import { logger } from '../config/logger.js';
 import Joi from 'joi';
 import { validateBody } from '../middleware/validation.js';
+import { requireProjectOwnership, resolveAuthenticatedAppUserId } from '../utils/authz.js';
 
 const router = express.Router();
 
@@ -17,6 +18,7 @@ const router = express.Router();
 const PROJECT_STATUSES = [
   'ideation',
   'validation',
+  'strategy',
   'planning',
   'building',
   'launched',
@@ -46,9 +48,16 @@ const updateProjectSchema = Joi.object({
  */
 router.post(
   '/',
+  authenticate,
   validateBody(createProjectSchema),
   asyncHandler(async (req, res) => {
     const { userId, name, description } = req.body;
+    const authenticatedUserId = await resolveAuthenticatedAppUserId(req);
+    if (userId !== authenticatedUserId) {
+      const error = new Error('You can only create projects for your own account');
+      error.statusCode = 403;
+      throw error;
+    }
 
     logger.info(`Creating project "${name}" for user: ${userId}`);
 
@@ -71,18 +80,20 @@ router.post(
 /**
  * GET /api/v1/projects
  * List projects for a user
- * Query params: userId (required)
+ * Query params: userId (optional; must match authenticated user if provided)
  */
 router.get(
   '/',
+  authenticate,
   asyncHandler(async (req, res) => {
-    const { userId } = req.query;
-
-    if (!userId) {
-      const error = new Error('userId query parameter is required');
-      error.statusCode = 400;
+    const authenticatedUserId = await resolveAuthenticatedAppUserId(req);
+    const requestedUserId = typeof req.query.userId === 'string' ? req.query.userId : null;
+    if (requestedUserId && requestedUserId !== authenticatedUserId) {
+      const error = new Error('You can only access your own projects');
+      error.statusCode = 403;
       throw error;
     }
+    const userId = requestedUserId || authenticatedUserId;
 
     logger.info(`Fetching projects for user: ${userId}`);
 
@@ -112,22 +123,11 @@ router.get(
   authenticate,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const userId = await resolveAuthenticatedAppUserId(req);
 
     logger.info(`Fetching project: ${id}`);
 
-    const result = await projectQueries.getById(id);
-
-    if (!result.success) {
-      logger.error(`Failed to fetch project: ${result.error}`);
-      throw new Error(result.error);
-    }
-
-    if (!result.project) {
-      logger.info(`Project not found: ${id}`);
-      const error = new Error('Project not found');
-      error.statusCode = 404;
-      throw error;
-    }
+    const project = await requireProjectOwnership(id, userId, 'access');
 
     // Optionally fetch related sessions
     const sessionsResult = await sessionQueries.getByProjectId(id);
@@ -138,7 +138,7 @@ router.get(
     res.status(200).json({
       success: true,
       data: {
-        ...result.project,
+        ...project,
         sessions
       }
     });
@@ -156,6 +156,8 @@ router.put(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
+    const userId = await resolveAuthenticatedAppUserId(req);
+    await requireProjectOwnership(id, userId, 'update');
 
     logger.info(`Updating project ${id} with:`, updates);
 
@@ -191,17 +193,11 @@ router.delete(
   authenticate,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const userId = await resolveAuthenticatedAppUserId(req);
 
     logger.info(`Deleting project: ${id}`);
 
-    // First check if project exists
-    const existsResult = await projectQueries.getById(id);
-    if (!existsResult.success || !existsResult.project) {
-      logger.info(`Project not found for deletion: ${id}`);
-      const error = new Error('Project not found');
-      error.statusCode = 404;
-      throw error;
-    }
+    await requireProjectOwnership(id, userId, 'delete');
 
     const result = await projectQueries.delete(id);
 
@@ -228,6 +224,8 @@ router.get(
   authenticate,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const userId = await resolveAuthenticatedAppUserId(req);
+    await requireProjectOwnership(id, userId, 'access');
 
     logger.info(`Fetching sessions for project: ${id}`);
 

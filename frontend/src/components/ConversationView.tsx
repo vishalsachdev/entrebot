@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { conversationService } from '../services/database';
 import type { DbConversation } from '../types/database';
@@ -8,7 +8,10 @@ interface ConversationViewProps {
   onMessageSent?: (message: DbConversation) => void;
 }
 
-export default function ConversationView({ sessionId, onMessageSent }: ConversationViewProps) {
+export default function ConversationView({
+  sessionId,
+  onMessageSent,
+}: ConversationViewProps) {
   const [conversations, setConversations] = useState<DbConversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
@@ -17,9 +20,24 @@ export default function ConversationView({ sessionId, onMessageSent }: Conversat
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    loadConversations();
+  const loadConversations = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await conversationService.getConversations(sessionId);
+      setConversations(data);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to load conversations'
+      );
+    } finally {
+      setIsLoading(false);
+    }
   }, [sessionId]);
+
+  useEffect(() => {
+    void loadConversations();
+  }, [loadConversations]);
 
   useEffect(() => {
     scrollToBottom();
@@ -27,19 +45,6 @@ export default function ConversationView({ sessionId, onMessageSent }: Conversat
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const loadConversations = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await conversationService.getConversations(sessionId);
-      setConversations(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load conversations');
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -92,7 +97,9 @@ export default function ConversationView({ sessionId, onMessageSent }: Conversat
       <div className="card h-[600px] flex items-center justify-center">
         <div className="flex flex-col items-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
-          <span className="ml-3 text-neutral-600 mt-3">Loading conversation...</span>
+          <span className="ml-3 text-neutral-600 mt-3">
+            Loading conversation...
+          </span>
         </div>
       </div>
     );
@@ -109,7 +116,8 @@ export default function ConversationView({ sessionId, onMessageSent }: Conversat
         <div>
           <h2 className="text-xl font-bold text-neutral-900">Conversation</h2>
           <p className="text-sm text-neutral-500 mt-1">
-            {conversations.length} {conversations.length === 1 ? 'message' : 'messages'}
+            {conversations.length}{' '}
+            {conversations.length === 1 ? 'message' : 'messages'}
           </p>
         </div>
         <button
@@ -159,8 +167,8 @@ export default function ConversationView({ sessionId, onMessageSent }: Conversat
                     msg.role === 'user'
                       ? 'bg-primary-600 text-white'
                       : msg.role === 'assistant'
-                      ? 'bg-neutral-100 text-neutral-900'
-                      : 'bg-neutral-50 text-neutral-600 border border-neutral-200'
+                        ? 'bg-neutral-100 text-neutral-900'
+                        : 'bg-neutral-50 text-neutral-600 border border-neutral-200'
                   }`}
                 >
                   {msg.role !== 'user' && (
@@ -168,10 +176,14 @@ export default function ConversationView({ sessionId, onMessageSent }: Conversat
                       {msg.role}
                     </div>
                   )}
-                  <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                  <p className="whitespace-pre-wrap break-words">
+                    {msg.content}
+                  </p>
                   <div
                     className={`text-xs mt-2 ${
-                      msg.role === 'user' ? 'text-primary-100' : 'text-neutral-500'
+                      msg.role === 'user'
+                        ? 'text-primary-100'
+                        : 'text-neutral-500'
                     }`}
                   >
                     {formatTimestamp(msg.created_at)}
@@ -185,12 +197,15 @@ export default function ConversationView({ sessionId, onMessageSent }: Conversat
       </div>
 
       {/* Input Area */}
-      <form onSubmit={handleSendMessage} className="pt-4 border-t border-neutral-200">
+      <form
+        onSubmit={handleSendMessage}
+        className="pt-4 border-t border-neutral-200"
+      >
         <div className="flex gap-2">
           <textarea
             ref={inputRef}
             value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
+            onChange={e => setInputMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type your message... (Shift+Enter for new line)"
             className="input flex-1 resize-none h-12 py-3"

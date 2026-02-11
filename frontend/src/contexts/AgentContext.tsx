@@ -64,6 +64,28 @@ const agentPrerequisites: Record<string, AgentPrerequisite[]> = {
       description: 'You need a validated idea before building',
     },
   ],
+  'prompt-engineer': [
+    {
+      memoryKey: 'PRD',
+      label: 'PRD',
+      description: 'Create your PRD before generating build prompts',
+    },
+  ],
+  'go-to-market': [
+    {
+      memoryKey: 'PRD',
+      label: 'PRD',
+      description:
+        'Create your product strategy and PRD before launch planning',
+    },
+  ],
+  'growth-coach': [
+    {
+      memoryKey: 'LAUNCH_PLAN',
+      label: 'Launch Plan',
+      description: 'Create your launch plan before moving into growth coaching',
+    },
+  ],
 };
 
 // Agents for the user journey - only show user-facing agents in selector
@@ -115,6 +137,22 @@ const baseAgents: Agent[] = [
     prerequisites: agentPrerequisites['validator'],
   },
   {
+    id: 'prompt-engineer',
+    name: 'Prompt Engineer',
+    description:
+      'Generates tool-specific prompts for Bolt, Cursor, v0, Lovable, and Replit.',
+    specialization: ['prompting', 'ai-builders', 'execution'],
+    personality: {
+      color: 'text-amber-600',
+      icon: 'lightbulb',
+      tone: 'precise and implementation-focused',
+      expertise: ['Tool-specific prompts', 'MVP scoping', 'Build constraints'],
+    },
+    availability: 'available',
+    recommendedFor: [],
+    prerequisites: agentPrerequisites['prompt-engineer'],
+  },
+  {
     id: 'builder',
     name: 'Builder',
     description: 'Helps you create PRDs, landing pages, and plan your MVP.',
@@ -133,6 +171,42 @@ const baseAgents: Agent[] = [
     availability: 'available',
     recommendedFor: [],
     prerequisites: agentPrerequisites['builder'],
+  },
+  {
+    id: 'go-to-market',
+    name: 'Go-to-Market',
+    description:
+      'Build launch strategy, messaging, channel plan, and launch-ready content assets.',
+    specialization: ['launch', 'positioning', 'marketing'],
+    personality: {
+      color: 'text-indigo-600',
+      icon: 'target',
+      tone: 'strategic and execution-focused',
+      expertise: [
+        'Go-to-market strategy',
+        'Channel prioritization',
+        'Launch content',
+      ],
+    },
+    availability: 'available',
+    recommendedFor: [],
+    prerequisites: agentPrerequisites['go-to-market'],
+  },
+  {
+    id: 'growth-coach',
+    name: 'Growth Coach',
+    description:
+      'Optimize post-launch traction with KPI tracking, feedback loops, and experiments.',
+    specialization: ['growth', 'retention', 'experiments'],
+    personality: {
+      color: 'text-teal-600',
+      icon: 'trending-up',
+      tone: 'analytical and momentum-driven',
+      expertise: ['Growth loops', 'KPI coaching', 'Post-launch iteration'],
+    },
+    availability: 'available',
+    recommendedFor: [],
+    prerequisites: agentPrerequisites['growth-coach'],
   },
 ];
 

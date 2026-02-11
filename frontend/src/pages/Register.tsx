@@ -43,8 +43,8 @@ const Register = () => {
 
     if (!password) {
       newErrors.password = 'Password is required';
-    } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+    } else if (password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
     }
 
     if (!confirmPassword) {
@@ -71,7 +71,9 @@ const Register = () => {
       await register(name, email, password);
       // Navigation is handled by AuthContext
     } catch (error) {
-      setApiError(error instanceof Error ? error.message : 'Registration failed');
+      setApiError(
+        error instanceof Error ? error.message : 'Registration failed'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -98,7 +100,11 @@ const Register = () => {
 
           {/* Error Alert */}
           {apiError && (
-            <Alert variant="error" className="mb-6" onClose={() => setApiError('')}>
+            <Alert
+              variant="error"
+              className="mb-6"
+              onClose={() => setApiError('')}
+            >
               {apiError}
             </Alert>
           )}
@@ -110,7 +116,7 @@ const Register = () => {
               type="text"
               placeholder="Enter your full name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={e => setName(e.target.value)}
               error={errors.name}
               leftIcon={<User className="h-4 w-4" />}
               autoComplete="name"
@@ -121,7 +127,7 @@ const Register = () => {
               type="email"
               placeholder="Enter your email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={e => setEmail(e.target.value)}
               error={errors.email}
               leftIcon={<Mail className="h-4 w-4" />}
               autoComplete="email"
@@ -132,11 +138,11 @@ const Register = () => {
               type="password"
               placeholder="Create a password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={e => setPassword(e.target.value)}
               error={errors.password}
               leftIcon={<Lock className="h-4 w-4" />}
               autoComplete="new-password"
-              helperText="Must be at least 6 characters"
+              helperText="Must be at least 8 characters"
             />
 
             <Input
@@ -144,7 +150,7 @@ const Register = () => {
               type="password"
               placeholder="Confirm your password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={e => setConfirmPassword(e.target.value)}
               error={errors.confirmPassword}
               leftIcon={<Lock className="h-4 w-4" />}
               autoComplete="new-password"
@@ -159,11 +165,17 @@ const Register = () => {
               />
               <label htmlFor="terms" className="ml-2 text-sm text-neutral-600">
                 I agree to the{' '}
-                <Link to="/terms" className="text-primary-600 hover:text-primary-700 font-medium">
+                <Link
+                  to="/terms"
+                  className="text-primary-600 hover:text-primary-700 font-medium"
+                >
                   Terms of Service
                 </Link>{' '}
                 and{' '}
-                <Link to="/privacy" className="text-primary-600 hover:text-primary-700 font-medium">
+                <Link
+                  to="/privacy"
+                  className="text-primary-600 hover:text-primary-700 font-medium"
+                >
                   Privacy Policy
                 </Link>
               </label>
@@ -199,14 +211,14 @@ const Register = () => {
             </Button>
           </Link>
 
-          {/* Demo Info */}
+          {/* Registration Info */}
           <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
             <div className="flex items-start gap-2">
               <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-900">
-                <p className="font-medium mb-1">Demo Mode</p>
+                <p className="font-medium mb-1">Secure Registration</p>
                 <p className="text-blue-700">
-                  This is a demo. Your account will be created locally for testing purposes.
+                  Your account is created with email/password authentication.
                 </p>
               </div>
             </div>

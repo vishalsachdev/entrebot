@@ -4,6 +4,7 @@
  * This file demonstrates practical usage patterns for the API service layer.
  * Copy these examples into your components as needed.
  */
+/* eslint-disable react-refresh/only-export-components */
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -50,23 +51,30 @@ export function useUserMutation() {
   const queryClient = useQueryClient();
 
   const create = useMutation({
-    mutationFn: ({ email, name, metadata }: {
+    mutationFn: ({
+      email,
+      name,
+      metadata,
+    }: {
       email: string;
       name: string;
-      metadata?: Record<string, any>
+      metadata?: Record<string, unknown>;
     }) => userService.createUser(email, { name, metadata }),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.setQueryData(['user', data.id], data);
       queryClient.setQueryData(['user', 'email', data.email], data);
     },
   });
 
   const update = useMutation({
-    mutationFn: ({ userId, updates }: {
+    mutationFn: ({
+      userId,
+      updates,
+    }: {
       userId: string;
-      updates: { name?: string; metadata?: Record<string, any> }
+      updates: { name?: string; metadata?: Record<string, unknown> };
     }) => userService.updateUser(userId, updates),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.setQueryData(['user', data.id], data);
       queryClient.invalidateQueries({ queryKey: ['user', data.id] });
     },
@@ -78,10 +86,19 @@ export function useUserMutation() {
 /**
  * Hook to fetch session with full data (messages + memory)
  */
-export function useSession(sessionId: string, includeMessages = true, includeMemory = true) {
+export function useSession(
+  sessionId: string,
+  includeMessages = true,
+  includeMemory = true
+) {
   return useQuery({
     queryKey: ['session', sessionId, 'full', includeMessages, includeMemory],
-    queryFn: () => sessionService.getSessionWithData(sessionId, includeMessages, includeMemory),
+    queryFn: () =>
+      sessionService.getSessionWithData(
+        sessionId,
+        includeMessages,
+        includeMemory
+      ),
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }
@@ -104,22 +121,30 @@ export function useSessionMutation() {
   const queryClient = useQueryClient();
 
   const create = useMutation({
-    mutationFn: ({ userId, metadata }: {
+    mutationFn: ({
+      userId,
+      metadata,
+    }: {
       userId: string;
-      metadata?: Record<string, any>
+      metadata?: Record<string, unknown>;
     }) => sessionService.createSession(userId, metadata),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.setQueryData(['session', data.id], data);
-      queryClient.invalidateQueries({ queryKey: ['sessions', 'user', data.user_id] });
+      queryClient.invalidateQueries({
+        queryKey: ['sessions', 'user', data.user_id],
+      });
     },
   });
 
   const update = useMutation({
-    mutationFn: ({ sessionId, metadata }: {
+    mutationFn: ({
+      sessionId,
+      metadata,
+    }: {
       sessionId: string;
-      metadata: Record<string, any>
+      metadata: Record<string, unknown>;
     }) => sessionService.updateSession(sessionId, metadata),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({ queryKey: ['session', data.id] });
     },
   });
@@ -149,18 +174,18 @@ export function useConversationMutation() {
       sessionId,
       role,
       content,
-      metadata
+      metadata,
     }: {
       sessionId: string;
       role: 'user' | 'assistant' | 'system';
       content: string;
-      metadata?: Record<string, any>
+      metadata?: Record<string, unknown>;
     }) => conversationService.addMessage(sessionId, role, content, metadata),
-    onSuccess: (data) => {
+    onSuccess: data => {
       // Optimistically update the conversation history
       queryClient.setQueryData<DbConversation[]>(
         ['conversation', data.session_id],
-        (old) => old ? [...old, data] : [data]
+        old => (old ? [...old, data] : [data])
       );
     },
   });
@@ -181,7 +206,7 @@ export function useMemory(sessionId: string) {
   });
 
   const setMemory = useMutation({
-    mutationFn: ({ key, value }: { key: string; value: any }) =>
+    mutationFn: ({ key, value }: { key: string; value: unknown }) =>
       memoryService.setMemory(sessionId, key, value),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['memory', sessionId] });
@@ -189,7 +214,7 @@ export function useMemory(sessionId: string) {
   });
 
   const setMultiple = useMutation({
-    mutationFn: (data: Record<string, any>) =>
+    mutationFn: (data: Record<string, unknown>) =>
       memoryService.setMultipleMemory(sessionId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['memory', sessionId] });
@@ -209,7 +234,7 @@ export function useMemory(sessionId: string) {
     error: query.error,
     setMemory,
     setMultiple,
-    deleteMemory
+    deleteMemory,
   };
 }
 
@@ -270,7 +295,7 @@ export function SessionList({ userId }: { userId: string }) {
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">Your Sessions</h2>
-      {sessions.map((session) => (
+      {sessions.map(session => (
         <div key={session.id} className="card">
           <p className="text-sm text-neutral-600">
             {new Date(session.created_at).toLocaleDateString()}
@@ -317,7 +342,7 @@ export function ChatInterface({ sessionId }: { sessionId: string }) {
   return (
     <div className="flex flex-col h-screen">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages?.map((msg) => (
+        {messages?.map(msg => (
           <div
             key={msg.id}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -338,8 +363,8 @@ export function ChatInterface({ sessionId }: { sessionId: string }) {
         <input
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+          onChange={e => setInput(e.target.value)}
+          onKeyPress={e => e.key === 'Enter' && handleSend()}
           placeholder="Type a message..."
           className="flex-1 input"
           disabled={isSending}
@@ -385,11 +410,12 @@ export function SessionMemory({ sessionId }: { sessionId: string }) {
 
       {/* Display existing memory */}
       <div className="mb-4 space-y-2">
-        {memory && Object.entries(memory).map(([k, v]) => (
-          <div key={k} className="bg-neutral-50 p-2 rounded">
-            <strong>{k}:</strong> {JSON.stringify(v)}
-          </div>
-        ))}
+        {memory &&
+          Object.entries(memory).map(([k, v]) => (
+            <div key={k} className="bg-neutral-50 p-2 rounded">
+              <strong>{k}:</strong> {JSON.stringify(v)}
+            </div>
+          ))}
       </div>
 
       {/* Add new memory */}
@@ -397,14 +423,14 @@ export function SessionMemory({ sessionId }: { sessionId: string }) {
         <input
           type="text"
           value={key}
-          onChange={(e) => setKey(e.target.value)}
+          onChange={e => setKey(e.target.value)}
           placeholder="Key"
           className="input"
         />
         <input
           type="text"
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={e => setValue(e.target.value)}
           placeholder='Value (JSON, e.g., {"theme": "dark"})'
           className="input"
         />
@@ -461,7 +487,7 @@ export function CompleteExample() {
     }
 
     init();
-  }, [user, userLoading, currentSessionId]);
+  }, [createSession, createUser, currentSessionId, email, user, userLoading]);
 
   if (userLoading) return <div>Initializing...</div>;
   if (!currentSessionId) return <div>Setting up session...</div>;

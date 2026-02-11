@@ -72,7 +72,7 @@ export const PHASES = {
   building: {
     name: 'Building',
     description: 'Build your MVP with AI tools',
-    agents: ['builder'],
+    agents: ['promptEngineer'],
     milestones: ['prompts_generated', 'mvp_started', 'mvp_complete'],
     nextPhase: 'launch',
     learningObjectives: [
@@ -85,7 +85,7 @@ export const PHASES = {
   launch: {
     name: 'Launch',
     description: 'Prepare and execute your launch',
-    agents: ['builder'], // Will be replaced with GTM agent
+    agents: ['goToMarket'],
     milestones: ['launch_plan_created', 'launched'],
     nextPhase: 'growth',
     learningObjectives: [
@@ -98,7 +98,7 @@ export const PHASES = {
   growth: {
     name: 'Growth',
     description: 'Grow and iterate on your product',
-    agents: ['builder'], // Will be replaced with Growth agent
+    agents: ['growthCoach'],
     milestones: ['first_user', 'first_feedback', 'iteration_complete'],
     nextPhase: null,
     learningObjectives: [
@@ -136,6 +136,10 @@ const TRANSITION_TRIGGERS = {
   building_to_launch: {
     memoryConditions: memory => memory.MVP?.complete,
     messagePatterns: ['launch', 'go live', 'release', 'ship it']
+  },
+  launch_to_growth: {
+    memoryConditions: memory => memory.Launch?.complete || memory.LAUNCH_PLAN?.content,
+    messagePatterns: ['launched', 'post-launch', 'growth', 'first users', 'iterate']
   }
 };
 
@@ -234,7 +238,8 @@ export class Orchestrator {
       validation: ['validate', 'market research', 'check viability'],
       strategy: ['prd', 'requirements', 'product plan', 'strategy'],
       building: ['build', 'mvp', 'code', 'create app'],
-      launch: ['launch', 'go live', 'release']
+      launch: ['launch', 'go live', 'release'],
+      growth: ['growth', 'retention', 'iterate', 'scale']
     };
 
     for (const [phase, keywords] of Object.entries(phaseKeywords)) {
@@ -278,7 +283,7 @@ export class Orchestrator {
       validation: () => memory.SelectedIdea?.idea,
       strategy: () => memory.Validator?.validated,
       building: () => memory.Validator?.validated, // Can start building after validation
-      launch: () => memory.MVP?.started,
+      launch: () => memory.MVP?.complete,
       growth: () => memory.Launch?.complete
     };
 

@@ -8,7 +8,9 @@ import { Button, Input, Alert } from '../components/ui';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {}
+  );
   const [apiError, setApiError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -25,8 +27,8 @@ const Login = () => {
 
     if (!password) {
       newErrors.password = 'Password is required';
-    } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+    } else if (password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
     }
 
     setErrors(newErrors);
@@ -74,7 +76,11 @@ const Login = () => {
 
           {/* Error Alert */}
           {apiError && (
-            <Alert variant="error" className="mb-6" onClose={() => setApiError('')}>
+            <Alert
+              variant="error"
+              className="mb-6"
+              onClose={() => setApiError('')}
+            >
               {apiError}
             </Alert>
           )}
@@ -86,7 +92,7 @@ const Login = () => {
               type="email"
               placeholder="Enter your email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={e => setEmail(e.target.value)}
               error={errors.email}
               leftIcon={<Mail className="h-4 w-4" />}
               autoComplete="email"
@@ -97,7 +103,7 @@ const Login = () => {
               type="password"
               placeholder="Enter your password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={e => setPassword(e.target.value)}
               error={errors.password}
               leftIcon={<Lock className="h-4 w-4" />}
               autoComplete="current-password"
@@ -149,14 +155,14 @@ const Login = () => {
             </Button>
           </Link>
 
-          {/* Demo Credentials */}
+          {/* Auth Hint */}
           <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
             <div className="flex items-start gap-2">
               <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-900">
-                <p className="font-medium mb-1">Demo Mode</p>
+                <p className="font-medium mb-1">Account Sign-In</p>
                 <p className="text-blue-700">
-                  Use any email and password (min 6 characters) to sign in
+                  Use the email and password you registered with
                 </p>
               </div>
             </div>

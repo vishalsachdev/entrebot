@@ -9,6 +9,7 @@ import { ContextErrorBoundary } from './components/ContextErrorBoundary';
 // Eager load auth pages for better UX
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 
 // Lazy load all other pages for code splitting
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -18,6 +19,7 @@ const Progress = lazy(() => import('./pages/Progress'));
 const History = lazy(() => import('./pages/History'));
 const Settings = lazy(() => import('./pages/Settings'));
 const ComponentDemo = lazy(() => import('./pages/ComponentDemo'));
+const SharedConversation = lazy(() => import('./pages/SharedConversation'));
 
 // Simple loading fallback component
 const PageLoader = () => (
@@ -50,6 +52,15 @@ function App() {
                 {/* Public Routes */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route
+                  path="/shared/:shareId"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SharedConversation />
+                    </Suspense>
+                  }
+                />
 
                 {/* Protected Routes with AppShell - wrapped in Suspense for lazy loading */}
                 <Route

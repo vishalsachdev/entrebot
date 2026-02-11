@@ -6,15 +6,18 @@
 import express from 'express';
 import { asyncHandler } from '../middleware/error.js';
 import { validateBody, schemas } from '../middleware/validation.js';
-import { authenticate, optionalAuth } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 import { conversationQueries, sessionQueries, memoryQueries } from '../database/queries.js';
 import { getAgent } from '../agents/index.js';
 import { orchestrator, PHASES } from '../orchestrator/index.js';
 import { logger } from '../config/logger.js';
+import { requireSessionOwnership, resolveAuthenticatedAppUserId } from '../utils/authz.js';
 import {
   parseIdeaSelection,
   isBackToIdeasRequest,
   isProceedToBuildRequest,
+  isMVPCompleteRequest,
+  isLaunchCompleteRequest,
   handleAgentResponse
 } from '../services/chat.js';
 
@@ -28,7 +31,7 @@ router.post(
   '/sessions',
   authenticate,
   asyncHandler(async (req, res) => {
-    const { userId } = req;
+    const userId = await resolveAuthenticatedAppUserId(req);
 
     const result = await sessionQueries.create(userId);
 
@@ -52,16 +55,12 @@ router.get(
   authenticate,
   asyncHandler(async (req, res) => {
     const { sessionId } = req.params;
-
-    const result = await sessionQueries.getById(sessionId);
-
-    if (!result.success) {
-      throw new Error(result.error);
-    }
+    const userId = await resolveAuthenticatedAppUserId(req);
+    const session = await requireSessionOwnership(sessionId, userId, 'access');
 
     res.json({
       success: true,
-      session: result.session
+      session
     });
   })
 );
@@ -72,12 +71,13 @@ router.get(
  */
 router.post(
   '/message',
-  optionalAuth,
+  authenticate,
   validateBody(schemas.sendMessage),
   asyncHandler(async (req, res) => {
-    const { userId: _userId } = req;
+    const userId = await resolveAuthenticatedAppUserId(req);
     const { sessionId, message, agent: requestedAgent } = req.body;
     const lowerMessage = message.toLowerCase();
+    await requireSessionOwnership(sessionId, userId, 'update');
 
     // Store user message
     await conversationQueries.create(sessionId, 'user', message);
@@ -128,7 +128,8 @@ router.post(
           phase: 'validation',
           phaseChanged: true,
           progress,
-          agent: 'IdeaGenerator'
+          agent: 'IdeaGenerator',
+          nextAgent: 'validator'
         });
       }
     }
@@ -153,12 +154,13 @@ router.post(
         phase: 'ideation',
         phaseChanged: true,
         progress,
-        agent: 'IdeaGenerator'
+        agent: 'IdeaGenerator',
+        nextAgent: 'ideaGenerator'
       });
     }
 
     // Route to appropriate agent handler
-    response = await handleAgentResponse(agent, sessionId, message, lowerMessage);
+    response = await handleAgentResponse(agent, sessionId, message, lowerMessage, null, phase);
 
     // Store agent response
     await conversationQueries.create(sessionId, 'assistant', response, { agent: agent.name });
@@ -185,6 +187,28 @@ router.post(
       }
     }
 
+    if (agent.name === 'GoToMarket' && isLaunchCompleteRequest(lowerMessage)) {
+      await agent.markLaunched(sessionId);
+      await orchestrator.updateState(sessionId, { currentPhase: 'growth' });
+      await orchestrator.addMilestone(sessionId, 'launched');
+      phaseChanged = true;
+      phase = 'growth';
+    }
+
+    if (agent.name === 'PromptEngineer' && isMVPCompleteRequest(lowerMessage)) {
+      const mvp = (await memoryQueries.get(sessionId, 'MVP'))?.value || {};
+      await memoryQueries.set(sessionId, 'MVP', {
+        ...mvp,
+        started: true,
+        complete: true,
+        completedAt: new Date().toISOString()
+      });
+      await orchestrator.updateState(sessionId, { currentPhase: 'launch' });
+      await orchestrator.addMilestone(sessionId, 'mvp_complete');
+      phaseChanged = true;
+      phase = 'launch';
+    }
+
     // Get updated progress
     const progress = await orchestrator.getProgress(sessionId);
 
@@ -198,7 +222,8 @@ router.post(
       backToIdeas,
       proceedToBuild,
       progress,
-      agent: agent.name
+      agent: agent.name,
+      nextAgent: phaseChanged && PHASES[phase]?.agents?.[0] ? PHASES[phase].agents[0] : undefined
     });
   })
 );
@@ -209,11 +234,12 @@ router.post(
  */
 router.post(
   '/stream',
-  optionalAuth,
+  authenticate,
   validateBody(schemas.sendMessage),
   asyncHandler(async (req, res) => {
-    const { userId: _userId } = req;
+    const userId = await resolveAuthenticatedAppUserId(req);
     const { sessionId, message, agent: agentName } = req.body;
+    await requireSessionOwnership(sessionId, userId, 'update');
 
     // Set up SSE
     res.setHeader('Content-Type', 'text/event-stream');
@@ -286,18 +312,16 @@ router.post(
       return res.end();
     }
 
-    // Determine which agent to use
-    let agent;
-    if (agentName) {
-      agent = getAgent(agentName);
-    } else {
-      const onboarding = getAgent('onboarding');
-      const isOnboardingComplete = await onboarding.isComplete(sessionId);
+    // Determine routing using orchestrator (same behavior as /chat/message)
+    const routing = await orchestrator.route(sessionId, message);
+    let { agent, phase, phaseChanged } = routing;
 
-      if (!isOnboardingComplete) {
-        agent = onboarding;
-      } else {
-        agent = getAgent('ideaGenerator');
+    // Allow explicit agent override (for backward compatibility)
+    if (agentName) {
+      try {
+        agent = getAgent(agentName);
+      } catch (e) {
+        // Fall back to orchestrator choice
       }
     }
 
@@ -310,26 +334,17 @@ router.post(
     };
 
     try {
-      if (agent.name === 'Onboarding') {
-        await agent.chat(sessionId, message, onChunk);
-      } else if (agent.name === 'IdeaGenerator') {
-        // Check if ideas already generated
-        const genIdeas = await memoryQueries.get(sessionId, 'GeneratedIdeas');
-        if (genIdeas?.value?.generated) {
-          await agent.chat(sessionId, message, onChunk);
-        } else {
-          await agent.generate(sessionId, onChunk);
-          await memoryQueries.set(sessionId, 'GeneratedIdeas', { generated: true });
-        }
-      } else if (agent.name === 'Validator') {
-        const validationDone = await memoryQueries.get(sessionId, 'Validator');
-        if (validationDone?.value?.validated) {
-          await agent.chat(sessionId, message, onChunk);
-        } else {
-          await agent.validate(sessionId, onChunk);
-        }
-      } else if (agent.name === 'Builder') {
-        await agent.chat(sessionId, message, onChunk);
+      const response = await handleAgentResponse(
+        agent,
+        sessionId,
+        message,
+        lowerMessage,
+        onChunk,
+        phase
+      );
+      // Some paths may return a response without chunk callbacks; preserve it for history.
+      if (!fullResponse && response) {
+        fullResponse = response;
       }
 
       // Store full response
@@ -338,7 +353,10 @@ router.post(
       });
 
       // Check for phase transitions
-      const donePayload = { done: true, agent: agent.name };
+      const donePayload = { done: true, agent: agent.name, phase, phaseChanged };
+      if (phaseChanged && PHASES[phase]?.agents?.[0]) {
+        donePayload.nextAgent = PHASES[phase].agents[0];
+      }
 
       if (agent.name === 'Onboarding') {
         const onboardingComplete = await agent.isComplete(sessionId);
@@ -364,6 +382,30 @@ router.post(
         }
       }
 
+      if (agent.name === 'GoToMarket' && isLaunchCompleteRequest(lowerMessage)) {
+        await agent.markLaunched(sessionId);
+        await orchestrator.updateState(sessionId, { currentPhase: 'growth' });
+        await orchestrator.addMilestone(sessionId, 'launched');
+        donePayload.phase = 'growth';
+        donePayload.phaseChanged = true;
+        donePayload.nextAgent = 'growthCoach';
+      }
+
+      if (agent.name === 'PromptEngineer' && isMVPCompleteRequest(lowerMessage)) {
+        const mvp = (await memoryQueries.get(sessionId, 'MVP'))?.value || {};
+        await memoryQueries.set(sessionId, 'MVP', {
+          ...mvp,
+          started: true,
+          complete: true,
+          completedAt: new Date().toISOString()
+        });
+        await orchestrator.updateState(sessionId, { currentPhase: 'launch' });
+        await orchestrator.addMilestone(sessionId, 'mvp_complete');
+        donePayload.phase = 'launch';
+        donePayload.phaseChanged = true;
+        donePayload.nextAgent = 'goToMarket';
+      }
+
       res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
       res.end();
     } catch (error) {
@@ -379,10 +421,13 @@ router.post(
  */
 router.get(
   '/history/:sessionId',
+  authenticate,
   asyncHandler(async (req, res) => {
     const { sessionId } = req.params;
     const limit = parseInt(req.query.limit || '50', 10);
     const countOnly = req.query.countOnly === 'true';
+    const userId = await resolveAuthenticatedAppUserId(req);
+    await requireSessionOwnership(sessionId, userId, 'access');
 
     const result = await conversationQueries.getHistory(sessionId, countOnly ? 1000 : limit);
 
@@ -407,8 +452,9 @@ router.post(
   authenticate,
   validateBody(schemas.selectIdea),
   asyncHandler(async (req, res) => {
-    const { userId: _userId } = req;
+    const userId = await resolveAuthenticatedAppUserId(req);
     const { sessionId, ideaNumber, ideaText } = req.body;
+    await requireSessionOwnership(sessionId, userId, 'update');
 
     const agent = getAgent('ideaGenerator');
     const result = await agent.selectIdea(sessionId, ideaNumber, ideaText);
@@ -423,8 +469,11 @@ router.post(
  */
 router.get(
   '/progress/:sessionId',
+  authenticate,
   asyncHandler(async (req, res) => {
     const { sessionId } = req.params;
+    const userId = await resolveAuthenticatedAppUserId(req);
+    await requireSessionOwnership(sessionId, userId, 'access');
 
     const progress = await orchestrator.getProgress(sessionId);
 

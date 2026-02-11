@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { userService } from '../services/database';
 import type { DbUser, UpdateUserForm } from '../types/database';
@@ -20,11 +20,7 @@ export default function UserProfile({ userId, onUpdate }: UserProfileProps) {
     email: '',
   });
 
-  useEffect(() => {
-    loadUser();
-  }, [userId]);
-
-  const loadUser = async () => {
+  const loadUser = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -36,11 +32,17 @@ export default function UserProfile({ userId, onUpdate }: UserProfileProps) {
         email: userData.email,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load user profile');
+      setError(
+        err instanceof Error ? err.message : 'Failed to load user profile'
+      );
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    void loadUser();
+  }, [loadUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,13 +90,12 @@ export default function UserProfile({ userId, onUpdate }: UserProfileProps) {
       <div className="card border-red-200 bg-red-50">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-red-900">Error Loading Profile</h3>
+            <h3 className="text-lg font-semibold text-red-900">
+              Error Loading Profile
+            </h3>
             <p className="text-red-700 mt-1">{error}</p>
           </div>
-          <button
-            onClick={loadUser}
-            className="btn-secondary"
-          >
+          <button onClick={loadUser} className="btn-secondary">
             Retry
           </button>
         </div>
@@ -105,7 +106,9 @@ export default function UserProfile({ userId, onUpdate }: UserProfileProps) {
   if (!user) {
     return (
       <div className="card">
-        <p className="text-neutral-500 text-center py-8">No user profile found</p>
+        <p className="text-neutral-500 text-center py-8">
+          No user profile found
+        </p>
       </div>
     );
   }
@@ -119,10 +122,7 @@ export default function UserProfile({ userId, onUpdate }: UserProfileProps) {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-neutral-900">User Profile</h2>
         {!isEditing && (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="btn-primary"
-          >
+          <button onClick={() => setIsEditing(true)} className="btn-primary">
             Edit Profile
           </button>
         )}
@@ -147,7 +147,7 @@ export default function UserProfile({ userId, onUpdate }: UserProfileProps) {
             <input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={e => setFormData({ ...formData, name: e.target.value })}
               className="input"
               placeholder="Enter your name"
               required
@@ -161,7 +161,9 @@ export default function UserProfile({ userId, onUpdate }: UserProfileProps) {
             <input
               type="tel"
               value={formData.phone_number}
-              onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+              onChange={e =>
+                setFormData({ ...formData, phone_number: e.target.value })
+              }
               className="input"
               placeholder="Enter your phone number"
               required
@@ -175,7 +177,9 @@ export default function UserProfile({ userId, onUpdate }: UserProfileProps) {
             <input
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={e =>
+                setFormData({ ...formData, email: e.target.value })
+              }
               className="input"
               placeholder="Enter your email"
               required

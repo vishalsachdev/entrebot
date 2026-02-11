@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { memoryService } from '../services/database';
 import type { DbMemory, CreateMemoryForm } from '../types/database';
@@ -8,21 +8,23 @@ interface MemoryViewerProps {
   onMemoryChange?: (memories: DbMemory[]) => void;
 }
 
-export default function MemoryViewer({ sessionId, onMemoryChange }: MemoryViewerProps) {
+export default function MemoryViewer({
+  sessionId,
+  onMemoryChange,
+}: MemoryViewerProps) {
   const [memories, setMemories] = useState<DbMemory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [newMemory, setNewMemory] = useState<CreateMemoryForm>({ key: '', value: '' });
+  const [newMemory, setNewMemory] = useState<CreateMemoryForm>({
+    key: '',
+    value: '',
+  });
   const [editValue, setEditValue] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    loadMemories();
-  }, [sessionId]);
-
-  const loadMemories = async () => {
+  const loadMemories = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -34,7 +36,11 @@ export default function MemoryViewer({ sessionId, onMemoryChange }: MemoryViewer
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [onMemoryChange, sessionId]);
+
+  useEffect(() => {
+    void loadMemories();
+  }, [loadMemories]);
 
   const handleAddMemory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,10 +49,13 @@ export default function MemoryViewer({ sessionId, onMemoryChange }: MemoryViewer
     try {
       setError(null);
       const created = await memoryService.createMemory(sessionId, newMemory);
-      setMemories(prev => [...prev, created]);
+      setMemories(prev => {
+        const next = [...prev, created];
+        onMemoryChange?.(next);
+        return next;
+      });
       setNewMemory({ key: '', value: '' });
       setIsAdding(false);
-      onMemoryChange?.([...memories, created]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create memory');
     }
@@ -57,11 +66,18 @@ export default function MemoryViewer({ sessionId, onMemoryChange }: MemoryViewer
 
     try {
       setError(null);
-      const updated = await memoryService.updateMemory(memoryId, { value: editValue });
-      setMemories(prev => prev.map(m => (m.id === memoryId ? updated : m)));
+      const updated = await memoryService.updateMemory(memoryId, {
+        value: editValue,
+      });
+      setMemories(prev => {
+        const next = prev.map(memory =>
+          memory.id === memoryId ? updated : memory
+        );
+        onMemoryChange?.(next);
+        return next;
+      });
       setEditingId(null);
       setEditValue('');
-      onMemoryChange?.(memories.map(m => (m.id === memoryId ? updated : m)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update memory');
     }
@@ -71,9 +87,11 @@ export default function MemoryViewer({ sessionId, onMemoryChange }: MemoryViewer
     try {
       setError(null);
       await memoryService.deleteMemory(memoryId);
-      const updated = memories.filter(m => m.id !== memoryId);
-      setMemories(updated);
-      onMemoryChange?.(updated);
+      setMemories(prev => {
+        const next = prev.filter(memory => memory.id !== memoryId);
+        onMemoryChange?.(next);
+        return next;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete memory');
     }
@@ -139,10 +157,7 @@ export default function MemoryViewer({ sessionId, onMemoryChange }: MemoryViewer
             {memories.length} {memories.length === 1 ? 'entry' : 'entries'}
           </p>
         </div>
-        <button
-          onClick={() => setIsAdding(!isAdding)}
-          className="btn-primary"
-        >
+        <button onClick={() => setIsAdding(!isAdding)} className="btn-primary">
           {isAdding ? 'Cancel' : '+ Add Memory'}
         </button>
       </div>
@@ -168,7 +183,9 @@ export default function MemoryViewer({ sessionId, onMemoryChange }: MemoryViewer
             onSubmit={handleAddMemory}
             className="mb-6 p-4 bg-neutral-50 rounded-lg border border-neutral-200"
           >
-            <h3 className="font-semibold text-neutral-900 mb-3">Add New Memory</h3>
+            <h3 className="font-semibold text-neutral-900 mb-3">
+              Add New Memory
+            </h3>
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
@@ -177,7 +194,9 @@ export default function MemoryViewer({ sessionId, onMemoryChange }: MemoryViewer
                 <input
                   type="text"
                   value={newMemory.key}
-                  onChange={e => setNewMemory({ ...newMemory, key: e.target.value })}
+                  onChange={e =>
+                    setNewMemory({ ...newMemory, key: e.target.value })
+                  }
                   className="input"
                   placeholder="e.g., user_preference, api_token"
                   required
@@ -189,7 +208,9 @@ export default function MemoryViewer({ sessionId, onMemoryChange }: MemoryViewer
                 </label>
                 <textarea
                   value={newMemory.value}
-                  onChange={e => setNewMemory({ ...newMemory, value: e.target.value })}
+                  onChange={e =>
+                    setNewMemory({ ...newMemory, value: e.target.value })
+                  }
                   className="input min-h-[100px]"
                   placeholder='e.g., {"theme": "dark"} or just plain text'
                   required
@@ -275,8 +296,18 @@ export default function MemoryViewer({ sessionId, onMemoryChange }: MemoryViewer
                           className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
                           title="Edit"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                            />
                           </svg>
                         </button>
                         <button
@@ -284,8 +315,18 @@ export default function MemoryViewer({ sessionId, onMemoryChange }: MemoryViewer
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
                           </svg>
                         </button>
                       </>

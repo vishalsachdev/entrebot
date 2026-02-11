@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { sessionService } from '../services/database';
 import type { DbSession } from '../types/database';
@@ -12,26 +12,25 @@ interface SessionListProps {
 export default function SessionList({
   userId,
   onSessionSelect,
-  selectedSessionId
+  selectedSessionId,
 }: SessionListProps) {
   const [sessions, setSessions] = useState<DbSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
+    null
+  );
 
-  useEffect(() => {
-    loadSessions();
-  }, [userId]);
-
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
       const data = await sessionService.getUserSessions(userId);
       // Sort by most recently updated first
-      const sorted = data.sort((a: DbSession, b: DbSession) =>
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      const sorted = data.sort(
+        (a: DbSession, b: DbSession) =>
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
       );
       setSessions(sorted);
     } catch (err) {
@@ -39,7 +38,11 @@ export default function SessionList({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
 
   const handleCreateSession = async () => {
     try {
@@ -62,11 +65,14 @@ export default function SessionList({
     try {
       setError(null);
       await sessionService.deleteSession(sessionId);
-      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      setSessions(prev => {
+        const next = prev.filter(session => session.id !== sessionId);
+        if (selectedSessionId === sessionId && next[0]) {
+          onSessionSelect?.(next[0]);
+        }
+        return next;
+      });
       setShowDeleteConfirm(null);
-      if (selectedSessionId === sessionId) {
-        onSessionSelect?.(sessions[0]);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete session');
     }
@@ -193,20 +199,22 @@ export default function SessionList({
                       </div>
                     </div>
 
-                    {session.metadata && Object.keys(session.metadata).length > 0 && (
-                      <div className="mt-2 text-xs">
-                        <span className="text-neutral-500">Metadata:</span>
-                        <span className="ml-1 text-neutral-600 font-mono">
-                          {Object.keys(session.metadata).length} {
-                            Object.keys(session.metadata).length === 1 ? 'item' : 'items'
-                          }
-                        </span>
-                      </div>
-                    )}
+                    {session.metadata &&
+                      Object.keys(session.metadata).length > 0 && (
+                        <div className="mt-2 text-xs">
+                          <span className="text-neutral-500">Metadata:</span>
+                          <span className="ml-1 text-neutral-600 font-mono">
+                            {Object.keys(session.metadata).length}{' '}
+                            {Object.keys(session.metadata).length === 1
+                              ? 'item'
+                              : 'items'}
+                          </span>
+                        </div>
+                      )}
                   </div>
 
                   <button
-                    onClick={(e) => {
+                    onClick={e => {
                       e.stopPropagation();
                       setShowDeleteConfirm(session.id);
                     }}
@@ -237,11 +245,12 @@ export default function SessionList({
                     className="mt-3 pt-3 border-t border-neutral-200"
                   >
                     <p className="text-sm text-red-700 mb-3">
-                      Are you sure you want to delete this session? This action cannot be undone.
+                      Are you sure you want to delete this session? This action
+                      cannot be undone.
                     </p>
                     <div className="flex gap-2">
                       <button
-                        onClick={(e) => {
+                        onClick={e => {
                           e.stopPropagation();
                           handleDeleteSession(session.id);
                         }}
@@ -250,7 +259,7 @@ export default function SessionList({
                         Delete
                       </button>
                       <button
-                        onClick={(e) => {
+                        onClick={e => {
                           e.stopPropagation();
                           setShowDeleteConfirm(null);
                         }}
