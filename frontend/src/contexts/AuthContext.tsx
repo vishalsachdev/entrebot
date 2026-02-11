@@ -113,6 +113,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const { replace } = useAuthNavigation();
   const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+  const authRedirectUrl =
+    import.meta.env.VITE_AUTH_REDIRECT_URL || `${window.location.origin}/login`;
   const isMountedRef = useRef(true);
 
   const clearLocalAuth = useCallback(() => {
@@ -283,7 +285,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         provider: 'google',
         options: {
           queryParams: { hd: ILLINOIS_DOMAIN },
-          redirectTo: `${window.location.origin}/login`,
+          redirectTo: authRedirectUrl,
         },
       });
 
@@ -296,35 +298,40 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         toFriendlyAuthMessage(error, 'Failed to start Google sign in.')
       );
     }
-  }, []);
+  }, [authRedirectUrl]);
 
-  const signInWithIllinoisEmail = useCallback(async (email: string) => {
-    if (!supabase || !isSupabaseConfigured) {
-      throw new Error(AUTH_SETUP_ERROR);
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!isValidIllinoisEmail(normalizedEmail)) {
-      throw new Error(`Only @${ILLINOIS_DOMAIN} email addresses are allowed.`);
-    }
-
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: normalizedEmail,
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`,
-        },
-      });
-
-      if (error) {
-        throw error;
+  const signInWithIllinoisEmail = useCallback(
+    async (email: string) => {
+      if (!supabase || !isSupabaseConfigured) {
+        throw new Error(AUTH_SETUP_ERROR);
       }
-    } catch (error) {
-      throw new Error(
-        toFriendlyAuthMessage(error, 'Failed to send magic link.')
-      );
-    }
-  }, []);
+
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!isValidIllinoisEmail(normalizedEmail)) {
+        throw new Error(
+          `Only @${ILLINOIS_DOMAIN} email addresses are allowed.`
+        );
+      }
+
+      try {
+        const { error } = await supabase.auth.signInWithOtp({
+          email: normalizedEmail,
+          options: {
+            emailRedirectTo: authRedirectUrl,
+          },
+        });
+
+        if (error) {
+          throw error;
+        }
+      } catch (error) {
+        throw new Error(
+          toFriendlyAuthMessage(error, 'Failed to send magic link.')
+        );
+      }
+    },
+    [authRedirectUrl]
+  );
 
   const login = useCallback(
     async (email: string, password: string) => {
