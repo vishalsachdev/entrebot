@@ -71,7 +71,7 @@ class ApiClient {
   private timeout: number = DEFAULT_TIMEOUT;
 
   constructor(baseURL: string) {
-    this.baseURL = baseURL;
+    this.baseURL = baseURL.replace(/\/+$/, '');
     this.token = localStorage.getItem('auth_token');
   }
 
@@ -142,7 +142,14 @@ class ApiClient {
     options: RequestInit = {},
     retries = MAX_RETRIES
   ): Promise<T> {
-    const url = `${this.baseURL}${endpoint}`;
+    const normalizedEndpoint = endpoint.startsWith('/')
+      ? endpoint
+      : `/${endpoint}`;
+    const dedupedEndpoint =
+      this.baseURL.endsWith('/v1') && normalizedEndpoint.startsWith('/v1/')
+        ? normalizedEndpoint.replace(/^\/v1/, '')
+        : normalizedEndpoint;
+    const url = `${this.baseURL}${dedupedEndpoint}`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
@@ -1081,12 +1088,13 @@ export const chatService = {
 
     try {
       const token = localStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Please sign in to continue chatting.');
+      }
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
       };
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
 
       const response = await fetch(`${API_BASE_URL}/chat/stream`, {
         method: 'POST',

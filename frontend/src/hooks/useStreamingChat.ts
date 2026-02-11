@@ -127,12 +127,17 @@ export const useStreamingChat = (): UseStreamingChatReturn => {
 
       try {
         const token = localStorage.getItem('auth_token');
+        if (!token) {
+          const authError = 'Please sign in to continue chatting.';
+          setError(authError);
+          setIsStreaming(false);
+          onError?.(authError);
+          throw new Error(authError);
+        }
         const headers: HeadersInit = {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         };
-        if (token) {
-          headers.Authorization = `Bearer ${token}`;
-        }
 
         const response = await fetch(`${API_BASE_URL}/chat/stream`, {
           method: 'POST',

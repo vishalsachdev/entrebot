@@ -249,19 +249,26 @@ export const AgentProvider = ({ children }: AgentProviderProps) => {
   // Fetch session memory from backend
   const refreshPrerequisites = useCallback(async () => {
     const sessionId = localStorage.getItem('venturebot_session_id');
-    if (!sessionId) {
+    const token = localStorage.getItem('auth_token');
+    if (!sessionId || !token) {
       setSessionMemory({});
       return;
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/memory/${sessionId}`);
+      const response = await fetch(`${API_BASE_URL}/memory/${sessionId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data?.memory) {
           // Backend returns { data: { memory: { key: value, ... } } }
           setSessionMemory(data.data.memory);
         }
+      } else if (response.status === 401 || response.status === 403) {
+        setSessionMemory({});
       }
     } catch (error) {
       console.error('Failed to fetch session memory:', error);

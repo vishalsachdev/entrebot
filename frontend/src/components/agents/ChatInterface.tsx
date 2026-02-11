@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgent } from '../../contexts/AgentContext';
-import { useProject } from '../../contexts/ProjectContext';
 import {
   useStreamingChat,
   type PhaseTransition,
@@ -38,7 +37,6 @@ interface ChatInterfaceProps {
 const ChatInterface = ({ className }: ChatInterfaceProps) => {
   const { currentAgent, switchAgent, onAgentSwitch, refreshPrerequisites } =
     useAgent();
-  const { currentProject } = useProject();
   const { streamMessage, isStreaming, abortStream } = useStreamingChat();
 
   // State
@@ -96,60 +94,27 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
 
     const createSession = async (): Promise<string> => {
       const token = localStorage.getItem('auth_token');
-
-      // Preferred path: authenticated chat session endpoint
-      if (token) {
-        const authResponse = await fetch(`${API_BASE_URL}/chat/sessions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        const authData = await authResponse.json();
-        if (authResponse.ok && authData.success && authData.session?.id) {
-          const newSessionId = authData.session.id;
-          setSessionId(newSessionId);
-          localStorage.setItem('venturebot_session_id', newSessionId);
-          return newSessionId;
-        }
+      if (!token) {
+        throw new Error('Please sign in to start a chat session.');
       }
 
-      // Legacy fallback for non-auth/demo mode
-      const userEmail = localStorage.getItem('user')
-        ? JSON.parse(localStorage.getItem('user')!).email
-        : 'demo@example.com';
-      const userName = localStorage.getItem('user')
-        ? JSON.parse(localStorage.getItem('user')!).name
-        : 'Demo User';
-
-      const userResponse = await fetch(`${API_BASE_URL}/users`, {
+      const authResponse = await fetch(`${API_BASE_URL}/chat/sessions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: userEmail, name: userName }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
       });
-      const userData = await userResponse.json();
-      const userId =
-        userData.success && userData.data?.id ? userData.data.id : userEmail;
-
-      const response = await fetch(`${API_BASE_URL}/sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: userId,
-          projectId: currentProject?.id || null,
-          metadata: { agent: currentAgent?.id },
-        }),
-      });
-
-      const data = await response.json();
-      if (data.success && data.data?.id) {
-        const newSessionId = data.data.id;
+      const authData = await authResponse.json().catch(() => ({}));
+      if (authResponse.ok && authData.success && authData.session?.id) {
+        const newSessionId = authData.session.id;
         setSessionId(newSessionId);
         localStorage.setItem('venturebot_session_id', newSessionId);
         return newSessionId;
       }
-      throw new Error(data.error || 'Failed to create session');
+      throw new Error(
+        authData.error || 'Failed to create authenticated session'
+      );
     };
 
     try {
@@ -162,7 +127,7 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
     } finally {
       sessionPromiseRef.current = null;
     }
-  }, [sessionId, currentProject?.id, currentAgent?.id]);
+  }, [sessionId]);
 
   // Load existing session and history from localStorage
   useEffect(() => {
@@ -172,9 +137,13 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
     const loadHistory = async () => {
       const savedSessionId = localStorage.getItem('venturebot_session_id');
       const token = localStorage.getItem('auth_token');
-      const authHeaders = token
-        ? { Authorization: `Bearer ${token}` }
-        : undefined;
+      if (!token) {
+        localStorage.removeItem('venturebot_session_id');
+        setSessionId(null);
+        setIsLoadingHistory(false);
+        return;
+      }
+      const authHeaders = { Authorization: `Bearer ${token}` };
 
       if (savedSessionId) {
         setSessionId(savedSessionId);
@@ -187,9 +156,20 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
               headers: authHeaders,
             }),
           ]);
+          if (
+            historyResponse.status === 401 ||
+            historyResponse.status === 403
+          ) {
+            localStorage.removeItem('venturebot_session_id');
+            setSessionId(null);
+            setMessages([]);
+            setProgress(null);
+            setIsLoadingHistory(false);
+            return;
+          }
 
-          const historyData = await historyResponse.json();
-          const progressData = await progressResponse.json();
+          const historyData = await historyResponse.json().catch(() => ({}));
+          const progressData = await progressResponse.json().catch(() => ({}));
 
           if (historyData.success && historyData.messages?.length > 0) {
             interface HistoryMessage {
@@ -264,10 +244,16 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
       // Store greeting in database
       (async () => {
         try {
+          const token = localStorage.getItem('auth_token');
+          if (!token) return;
+
           const sid = await ensureSession();
           await fetch(`${API_BASE_URL}/conversations`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
             body: JSON.stringify({
               sessionId: sid,
               role: 'assistant',
@@ -425,15 +411,17 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
 
           try {
             const token = localStorage.getItem('auth_token');
-            const headers = token
-              ? { Authorization: `Bearer ${token}` }
-              : undefined;
+            if (!token) return;
+
             const progressResponse = await fetch(
               `${API_BASE_URL}/chat/progress/${currentSessionId}`,
               {
-                headers,
+                headers: { Authorization: `Bearer ${token}` },
               }
             );
+            if (!progressResponse.ok) {
+              return;
+            }
             const progressData = await progressResponse.json();
             if (progressData.success) {
               setProgress(progressData);
@@ -779,9 +767,18 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
       // Optionally persist to backend (if we have the API endpoint)
       if (sessionId) {
         try {
+          const token = localStorage.getItem('auth_token');
+          if (!token) {
+            showToast('info', 'Saved locally. Sign in to sync edits.');
+            return;
+          }
+
           await fetch(`${API_BASE_URL}/conversations/${messageId}`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
             body: JSON.stringify({
               content: newContent,
               metadata: { edited: true, editedAt: new Date().toISOString() },
@@ -807,8 +804,15 @@ const ChatInterface = ({ className }: ChatInterfaceProps) => {
       // Optionally persist to backend (if we have the API endpoint)
       if (sessionId) {
         try {
+          const token = localStorage.getItem('auth_token');
+          if (!token) {
+            showToast('info', 'Deleted locally. Sign in to sync deletions.');
+            return;
+          }
+
           await fetch(`${API_BASE_URL}/conversations/${messageId}`, {
             method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
           });
         } catch (err) {
           // Silently fail - deletion is still done locally

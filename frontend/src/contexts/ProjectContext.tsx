@@ -113,6 +113,9 @@ function formatPhaseName(status: string): string {
  */
 function getUserId(): string | null {
   try {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return null;
+
     const userStr = localStorage.getItem('user');
     if (userStr) {
       const user = JSON.parse(userStr);
@@ -134,6 +137,8 @@ export const ProjectProvider = ({ children }: ProjectProviderProps) => {
   const loadProjects = useCallback(async () => {
     const userId = getUserId();
     if (!userId) {
+      setProjects([]);
+      setCurrentProject(null);
       setIsLoading(false);
       return;
     }
