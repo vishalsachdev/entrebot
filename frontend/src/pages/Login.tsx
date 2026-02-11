@@ -1,57 +1,114 @@
-import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Lock, AlertCircle } from 'lucide-react';
+import { AlertCircle, Lock, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, Input, Alert } from '../components/ui';
 
+const ILLINOIS_DOMAIN = 'illinois.edu';
+
+const isValidIllinoisEmail = (email: string): boolean =>
+  email.toLowerCase().endsWith(`@${ILLINOIS_DOMAIN}`);
+
 const Login = () => {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
-    {}
-  );
+  const [emailValid, setEmailValid] = useState(true);
+  const [linkSent, setLinkSent] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const [apiError, setApiError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmittingGoogle, setIsSubmittingGoogle] = useState(false);
+  const [isSubmittingMagicLink, setIsSubmittingMagicLink] = useState(false);
+  const navigate = useNavigate();
 
-  const { login } = useAuth();
+  const {
+    signInWithGoogle,
+    signInWithIllinoisEmail,
+    isAuthenticated,
+    isLoading,
+  } = useAuth();
 
-  const validateForm = () => {
-    const newErrors: { email?: string; password?: string } = {};
-
-    if (!email) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = 'Email is invalid';
-    }
-
-    if (!password) {
-      newErrors.password = 'Password is required';
-    } else if (password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setApiError('');
-
-    if (!validateForm()) {
+  useEffect(() => {
+    if (cooldown <= 0) {
       return;
     }
 
-    setIsSubmitting(true);
+    const timer = window.setTimeout(() => setCooldown(prev => prev - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [cooldown]);
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, isLoading, navigate]);
+
+  const handleEmailChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value.trim().toLowerCase();
+    setEmail(value);
+    setLinkSent(false);
+
+    if (!value) {
+      setEmailValid(true);
+      setApiError('');
+      return;
+    }
+
+    const valid = isValidIllinoisEmail(value);
+    setEmailValid(valid);
+    setApiError(
+      valid ? '' : `Only @${ILLINOIS_DOMAIN} email addresses are allowed.`
+    );
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLinkSent(false);
+    setApiError('');
+    setIsSubmittingGoogle(true);
 
     try {
-      await login(email, password);
-      // Navigation is handled by AuthContext
+      await signInWithGoogle();
+      // Redirect is handled by Supabase callback + AuthContext
     } catch (error) {
-      setApiError(error instanceof Error ? error.message : 'Login failed');
+      setApiError(
+        error instanceof Error
+          ? error.message
+          : 'Google sign in failed. Please try again.'
+      );
     } finally {
-      setIsSubmitting(false);
+      setIsSubmittingGoogle(false);
+    }
+  };
+
+  const handleMagicLinkSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setApiError('');
+    setLinkSent(false);
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!isValidIllinoisEmail(normalizedEmail)) {
+      setEmailValid(false);
+      setApiError(`Only @${ILLINOIS_DOMAIN} email addresses are allowed.`);
+      return;
+    }
+
+    if (cooldown > 0) {
+      setApiError('Please wait before requesting another magic link.');
+      return;
+    }
+
+    setIsSubmittingMagicLink(true);
+    try {
+      await signInWithIllinoisEmail(normalizedEmail);
+      setLinkSent(true);
+      setCooldown(30);
+    } catch (error) {
+      setApiError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to send magic link. Please try again.'
+      );
+    } finally {
+      setIsSubmittingMagicLink(false);
     }
   };
 
@@ -64,17 +121,16 @@ const Login = () => {
         className="w-full max-w-md"
       >
         <div className="bg-white rounded-lg shadow-lg p-8">
-          {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-neutral-900 mb-2">
-              Welcome Back
+              Illinois Sign In
             </h1>
             <p className="text-neutral-600">
-              Sign in to continue your entrepreneurship journey
+              Use your <span className="font-semibold">@illinois.edu</span>{' '}
+              account to access EntreBot
             </p>
           </div>
 
-          {/* Error Alert */}
           {apiError && (
             <Alert
               variant="error"
@@ -85,86 +141,86 @@ const Login = () => {
             </Alert>
           )}
 
-          {/* Login Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-4">
+            <Button
+              type="button"
+              variant="primary"
+              className="w-full"
+              isLoading={isSubmittingGoogle}
+              disabled={isSubmittingGoogle || isSubmittingMagicLink}
+              onClick={handleGoogleSignIn}
+            >
+              Sign in with Google
+            </Button>
+
+            <div className="relative my-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-neutral-200" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-neutral-500">
+                  or use email magic link
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handleMagicLinkSubmit} className="space-y-4">
             <Input
               label="Email"
               type="email"
-              placeholder="Enter your email"
+              placeholder="you@illinois.edu"
               value={email}
-              onChange={e => setEmail(e.target.value)}
-              error={errors.email}
+              onChange={handleEmailChange}
+              error={!emailValid && email ? 'Please use @illinois.edu' : ''}
               leftIcon={<Mail className="h-4 w-4" />}
               autoComplete="email"
             />
-
-            <Input
-              label="Password"
-              type="password"
-              placeholder="Enter your password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              error={errors.password}
-              leftIcon={<Lock className="h-4 w-4" />}
-              autoComplete="current-password"
-            />
-
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
-                />
-                <span className="ml-2 text-neutral-600">Remember me</span>
-              </label>
-              <Link
-                to="/forgot-password"
-                className="text-primary-600 hover:text-primary-700 font-medium"
-              >
-                Forgot password?
-              </Link>
-            </div>
 
             <Button
               type="submit"
               variant="primary"
               className="w-full"
-              isLoading={isSubmitting}
-              disabled={isSubmitting}
+              isLoading={isSubmittingMagicLink}
+              disabled={
+                isSubmittingMagicLink ||
+                isSubmittingGoogle ||
+                !emailValid ||
+                cooldown > 0
+              }
             >
-              Sign In
+              {cooldown > 0 ? `Resend in ${cooldown}s` : 'Send Magic Link'}
             </Button>
           </form>
 
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-neutral-200" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-neutral-500">
-                Don't have an account?
-              </span>
-            </div>
-          </div>
+          {linkSent && (
+            <Alert variant="success" className="mt-4">
+              Magic link sent to <span className="font-semibold">{email}</span>.
+              Check your inbox to continue.
+            </Alert>
+          )}
 
-          {/* Register Link */}
-          <Link to="/register">
-            <Button variant="secondary" className="w-full">
-              Create Account
-            </Button>
-          </Link>
-
-          {/* Auth Hint */}
           <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
             <div className="flex items-start gap-2">
               <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-900">
-                <p className="font-medium mb-1">Account Sign-In</p>
+                <p className="font-medium mb-1">No Separate Registration</p>
                 <p className="text-blue-700">
-                  Use the email and password you registered with
+                  EntreBot now uses Illinois authentication only. Sign in with
+                  Google or an Illinois magic link.
                 </p>
               </div>
+            </div>
+          </div>
+
+          <div className="mt-4 p-4 bg-neutral-50 rounded-lg border border-neutral-200">
+            <div className="flex items-start gap-2 text-sm text-neutral-700">
+              <Lock className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <p>
+                Access is restricted to users with an{' '}
+                <span className="font-semibold">@{ILLINOIS_DOMAIN}</span> email
+                address.
+              </p>
             </div>
           </div>
         </div>
