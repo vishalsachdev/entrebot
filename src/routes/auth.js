@@ -8,7 +8,7 @@ import Joi from 'joi';
 import { asyncHandler } from '../middleware/error.js';
 import { validateBody } from '../middleware/validation.js';
 import { authenticate } from '../middleware/auth.js';
-import { getSupabase } from '../database/supabase.js';
+import { getSupabase, getSupabaseAdmin } from '../database/supabase.js';
 import { userQueries } from '../database/queries.js';
 import { logger } from '../config/logger.js';
 import { config } from '../config/env.js';
@@ -64,7 +64,7 @@ router.post(
     const displayName = full_name || name || email.split('@')[0];
     const supabase = getSupabase();
 
-    const { data, error } = await supabase.auth.signUp({
+    let { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -73,6 +73,50 @@ router.post(
         }
       }
     });
+
+    // Fallback: if Supabase public sign-up is rate limited, use admin user creation.
+    if (error && /rate limit/i.test(error.message || '')) {
+      const supabaseAdmin = getSupabaseAdmin();
+      if (supabaseAdmin) {
+        logger.warn('Public sign-up rate limited; attempting admin createUser fallback');
+
+        const { error: adminError } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: {
+            full_name: displayName
+          }
+        });
+
+        if (!adminError) {
+          const signInResult = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+
+          if (!signInResult.error && signInResult.data?.session) {
+            data = {
+              ...data,
+              session: signInResult.data.session,
+              user: signInResult.data.user
+            };
+            error = null;
+          } else {
+            logger.error(
+              'Admin register fallback created user but sign-in failed:',
+              signInResult.error?.message || 'No session returned'
+            );
+            return res.status(500).json({
+              success: false,
+              error: 'Account created, but sign-in failed. Please try logging in.'
+            });
+          }
+        } else {
+          error = adminError;
+        }
+      }
+    }
 
     if (error) {
       logger.warn('Auth register failed:', error.message);
