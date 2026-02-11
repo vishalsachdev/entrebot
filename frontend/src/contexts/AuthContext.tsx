@@ -12,12 +12,17 @@ import { useNavigate } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import type { User } from '../types';
 import { apiClient } from '../services/api';
-import { supabase } from '../lib/supabase';
+import {
+  isSupabaseConfigured,
+  missingSupabaseConfigMessage,
+  supabase,
+} from '../lib/supabase';
 
 // Re-export for backward compatibility
 export type { User };
 
 const ILLINOIS_DOMAIN = 'illinois.edu';
+const AUTH_SETUP_ERROR = `Authentication is unavailable. ${missingSupabaseConfigMessage}`;
 
 export interface AuthContextType {
   user: User | null;
@@ -124,7 +129,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     async (session: Session, options?: { redirectOnSuccess?: boolean }) => {
       const email = session.user?.email || null;
       if (!isValidIllinoisEmail(email)) {
-        await supabase.auth.signOut();
+        if (supabase) {
+          await supabase.auth.signOut();
+        }
         clearLocalAuth();
         throw new Error(
           `Only @${ILLINOIS_DOMAIN} email addresses are allowed.`
@@ -141,7 +148,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          await supabase.auth.signOut();
+          if (supabase) {
+            await supabase.auth.signOut();
+          }
           clearLocalAuth();
         } else {
           const cached = localStorage.getItem('user');
@@ -179,6 +188,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Check for existing session on mount
   useEffect(() => {
     const checkAuth = async () => {
+      if (!supabase || !isSupabaseConfigured) {
+        clearLocalAuth();
+        setIsLoading(false);
+        return;
+      }
+
       try {
         const {
           data: { session },
@@ -216,6 +231,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [clearLocalAuth, hydrateAppUser]);
 
   useEffect(() => {
+    if (!supabase || !isSupabaseConfigured) {
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -251,6 +273,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [clearLocalAuth, hydrateAppUser]);
 
   const signInWithGoogle = useCallback(async () => {
+    if (!supabase || !isSupabaseConfigured) {
+      throw new Error(AUTH_SETUP_ERROR);
+    }
+
     try {
       setIsLoading(true);
       const { error } = await supabase.auth.signInWithOAuth({
@@ -273,6 +299,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const signInWithIllinoisEmail = useCallback(async (email: string) => {
+    if (!supabase || !isSupabaseConfigured) {
+      throw new Error(AUTH_SETUP_ERROR);
+    }
+
     const normalizedEmail = email.trim().toLowerCase();
     if (!isValidIllinoisEmail(normalizedEmail)) {
       throw new Error(`Only @${ILLINOIS_DOMAIN} email addresses are allowed.`);
@@ -318,7 +348,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const logout = useCallback(() => {
     void (async () => {
       try {
-        await supabase.auth.signOut();
+        if (supabase) {
+          await supabase.auth.signOut();
+        }
       } catch (error) {
         console.error('Sign out failed:', error);
       } finally {
