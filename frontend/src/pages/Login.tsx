@@ -21,6 +21,24 @@ const Login = () => {
 
   const { signInWithIllinoisEmail, isAuthenticated, isLoading } = useAuth();
 
+  // Parse auth errors from URL hash (e.g. expired magic links)
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes('error=')) {
+      const params = new URLSearchParams(hash.replace('#', ''));
+      const errorCode = params.get('error_code');
+      if (errorCode === 'otp_expired') {
+        setApiError('Your magic link has expired. Please request a new one.');
+      } else {
+        const desc = params.get('error_description');
+        if (desc) {
+          setApiError(decodeURIComponent(desc.replace(/\+/g, ' ')));
+        }
+      }
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
+
   useEffect(() => {
     if (cooldown <= 0) {
       return;
