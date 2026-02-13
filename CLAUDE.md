@@ -513,6 +513,19 @@ New `classifyMessage()` method returns: `'rating'`, `'selection'`, `'affirmative
 - `memoryQueries.get()` returns `{success, value}` — always access `.value`
 - React ref-based promise deduplication prevents concurrent async operations (session creation race)
 
+### 2026-02-13
+**Completed:**
+- Removed Google OAuth sign-in button from Login page (provider not enabled in Supabase)
+- Login now uses magic link only, restricted to @illinois.edu emails
+- Added missing `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to `frontend/.env` (was blocking all local auth)
+
+**TODO - Google OAuth Setup:**
+- Generate new Google OAuth credentials (Client ID + Secret) in Google Cloud Console
+- Enable Google provider in Supabase dashboard (Auth > Providers > Google)
+- Add Supabase callback URL as authorized redirect URI: `https://zdtrnfexjviccudkaufu.supabase.co/auth/v1/callback`
+- Use same credentials for both `entrebot` and `code/illinihunt` projects
+- Re-add Google sign-in button to `frontend/src/pages/Login.tsx` once configured
+
 ---
 
 # important-instruction-reminders
