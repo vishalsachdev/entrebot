@@ -1,13 +1,13 @@
 # EntreBot - AI Venture Ideation Assistant
 
 ## Stack
-Python backend (FastAPI), React frontend (Vite/TypeScript), CrewAI agents, Supabase, Docker
+Express.js backend, React frontend (Vite/TypeScript), OpenAI gpt-4o-mini, Supabase, Docker
 
 ## Commands
 
 ```bash
 # Backend
-python -m uvicorn services.api_gateway.app.main:app --reload --port 8000
+node src/server.js          # or: npm run dev (--watch mode)
 
 # Frontend
 cd frontend && npm run dev
@@ -38,18 +38,27 @@ After idea selection, user gets stuck in validation phase. Validator agent loops
 - Stream and non-stream endpoints must have identical routing logic
 - Supabase project ID: `zdtrnfexjviccudkaufu`
 
-## TODO — Google OAuth Setup
+## Known Bug — MAGIC LINK EXPIRED (blocking local dev)
 
-- Generate OAuth credentials in Google Cloud Console
-- Enable Google provider in Supabase (Auth > Providers > Google)
-- Callback URL: `https://zdtrnfexjviccudkaufu.supabase.co/auth/v1/callback`
-- Share credentials with `code/illinihunt`
+Magic links always show "expired" when clicked. Root cause: `http://localhost:5173` is likely missing from Supabase Redirect URLs allowlist.
+
+**Fix:** Supabase Dashboard → Authentication → URL Configuration → add `http://localhost:5173/**` to Redirect URLs. Verify Site URL is set.
 
 ## Current Focus
 
-Resolve validation loop bug, then Phase 5 (advanced coaching features).
+1. Fix magic link redirect (blocking all local testing)
+2. Resolve validation loop bug
+3. Phase 5 (advanced coaching features)
 
 ## Session Log
+
+### 2026-03-07
+- Installed deps (node_modules were missing), started backend (port 3000) + frontend (port 5173)
+- Browser audit: login page UX works well (validation, error messages, cooldown timer)
+- Found: ProjectContext fires "Failed to load projects" errors on login page (harmless but noisy)
+- Found: CLAUDE.md had wrong stack info (said FastAPI/CrewAI, actually Express/OpenAI) — fixed
+- Blocked: magic links always expire — need Supabase redirect URL allowlist fix before full UX audit
+- Dropped 3 stale git stashes, stopped unrelated Vite process
 
 ### 2026-02-13
 - Removed Google OAuth (not enabled), magic link only (@illinois.edu)
